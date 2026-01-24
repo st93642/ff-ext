@@ -12,7 +12,7 @@ This Firefox extension allows users to capture text from any webpage with a sing
 - **Visual Feedback**:
   - Button state changes from "Capture" to "Captured".
   - Status messages indicating the capture type.
-  - Native browser notifications for confirmation.
+  - Audio feedback (shutter sound) upon capture.
 
 ## Technical Implementation
 
@@ -34,7 +34,7 @@ This Firefox extension allows users to capture text from any webpage with a sing
 1. Navigate to any webpage you want to capture.
 2. Click the extension icon in the toolbar.
 3. Click the **"Capture"** button.
-4. The content will be copied to your clipboard, and you will receive a notification.
+4. The content will be copied to your clipboard instantly with a sound confirmation.
 5. If the page is primarily images or has very little text, a screenshot will be captured instead.
 
 ## Project Structure

@@ -1,9 +1,42 @@
 const captureBtn = document.getElementById('captureBtn');
 const statusDiv = document.getElementById('status');
 
+function playCaptureSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const bufferSize = audioCtx.sampleRate * 0.1;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1000;
+
+        const envelope = audioCtx.createGain();
+        envelope.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        envelope.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+        whiteNoise.connect(filter);
+        filter.connect(envelope);
+        envelope.connect(audioCtx.destination);
+
+        whiteNoise.start();
+        whiteNoise.stop(audioCtx.currentTime + 0.1);
+    } catch (e) {
+        console.error('Failed to play sound:', e);
+    }
+}
+
 captureBtn.addEventListener('click', async () => {
     captureBtn.disabled = true;
     statusDiv.textContent = 'Capturing...';
+    playCaptureSound();
 
     try {
         const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -45,7 +78,6 @@ captureBtn.addEventListener('click', async () => {
 
 async function copyTextToClipboard(text) {
     await navigator.clipboard.writeText(text);
-    await showNotification('Text captured', 'The page text has been copied to your clipboard.');
 }
 
 async function copyImageToClipboard(dataUrl) {
@@ -57,15 +89,6 @@ async function copyImageToClipboard(dataUrl) {
             [blob.type]: blob
         })
     ]);
-    await showNotification('Screenshot captured', 'A screenshot of the viewport has been copied to your clipboard.');
-}
-
-async function showNotification(title, message) {
-    await browser.runtime.sendMessage({
-        action: 'notify',
-        title: title,
-        message: message
-    });
 }
 
 function showFeedback(type) {

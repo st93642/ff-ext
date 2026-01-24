@@ -9,13 +9,5 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: err.message });
             });
         return true; // Keep message channel open for async response
-    } else if (request.action === "notify") {
-        browser.notifications.create({
-            type: 'basic',
-            iconUrl: browser.runtime.getURL('icons/icon-48.png'),
-            title: request.title,
-            message: request.message
-        });
-        sendResponse({ success: true });
     }
 });
