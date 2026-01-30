@@ -8,7 +8,6 @@
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
-    let initialScrollY = 0; // Track scroll position when selection starts
     
     // Create overlay elements
     function createOverlay() {
@@ -84,7 +83,6 @@
         isSelecting = true;
         startX = e.clientX;
         startY = e.clientY;
-        initialScrollY = window.scrollY; // Store initial scroll position
         
         selectionBox.style.left = startX + 'px';
         selectionBox.style.top = startY + 'px';
@@ -102,17 +100,13 @@
         const currentX = e.clientX;
         const currentY = e.clientY;
         
-        // Calculate the scroll delta since selection started
-        const scrollDelta = window.scrollY - initialScrollY;
-        
-        // Calculate selection box dimensions
-        // The box should represent the area on the page, accounting for scroll
+        // Calculate selection box dimensions (viewport-relative)
         const left = Math.min(startX, currentX);
         const top = Math.min(startY, currentY);
         const width = Math.abs(currentX - startX);
         const height = Math.abs(currentY - startY);
         
-        // Update selection box - stays viewport-fixed but dimensions account for scroll
+        // Update selection box position
         selectionBox.style.left = left + 'px';
         selectionBox.style.top = top + 'px';
         selectionBox.style.width = width + 'px';
