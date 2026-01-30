@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenshot Extension Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .header {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .section {
+            margin: 3rem 0;
+            padding: 2rem;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .section:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .color-box {
+            height: 150px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 1rem 1.5rem;
+            margin: 2rem 0;
+            border-radius: 4px;
+        }
+
+        .instructions h3 {
+            color: #1976d2;
+            margin-bottom: 0.5rem;
+        }
+
+        .instructions ol {
+            margin-left: 1.5rem;
+        }
+
+        .instructions li {
+            margin: 0.5rem 0;
+        }
+
+        .tall-content {
+            min-height: 150vh;
+            background: linear-gradient(180deg, #fff 0%, #e3f2fd 50%, #fff 100%);
+            padding: 2rem;
+            border-radius: 8px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 0.75rem 0;
+            padding-left: 2rem;
+            position: relative;
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4caf50;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .canvas-demo {
+            margin: 2rem 0;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            max-width: 100%;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📸 Screenshot Extension Test Page</h1>
+        <p>Perfect for testing the screenshot area capture extension</p>
+    </div>
+
+    <div class="container">
+        <div class="instructions">
+            <h3>How to Test the Extension:</h3>
+            <ol>
+                <li>Click the extension icon in your browser toolbar</li>
+                <li>Click and drag to select any area on this page</li>
+                <li>Move your mouse to the edges to trigger auto-scroll</li>
+                <li>Release to capture - the screenshot will be copied to clipboard</li>
+                <li>Paste (Ctrl+V / Cmd+V) in any image editor to verify</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>Features to Test</h2>
+            <ul class="feature-list">
+                <li>Single viewport capture (small selections)</li>
+                <li>Multi-viewport stitching (select across multiple screen heights)</li>
+                <li>Auto-scroll during selection (move mouse to edges)</li>
+                <li>Escape key cancellation</li>
+                <li>Minimum selection size (10x10px)</li>
+                <li>Toast notifications</li>
+                <li>Clipboard integration</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Color Grid Test</h2>
+            <p>Try capturing just a few colored boxes, or the entire grid:</p>
+            <div class="color-grid">
+                <div class="color-box" style="background: #f44336;">Red</div>
+                <div class="color-box" style="background: #e91e63;">Pink</div>
+                <div class="color-box" style="background: #9c27b0;">Purple</div>
+                <div class="color-box" style="background: #673ab7;">Deep Purple</div>
+                <div class="color-box" style="background: #3f51b5;">Indigo</div>
+                <div class="color-box" style="background: #2196f3;">Blue</div>
+                <div class="color-box" style="background: #03a9f4;">Light Blue</div>
+                <div class="color-box" style="background: #00bcd4;">Cyan</div>
+                <div class="color-box" style="background: #009688;">Teal</div>
+                <div class="color-box" style="background: #4caf50;">Green</div>
+                <div class="color-box" style="background: #8bc34a;">Light Green</div>
+                <div class="color-box" style="background: #cddc39;">Lime</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Statistics Dashboard</h2>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">1,234</div>
+                    <div class="stat-label">Screenshots Taken</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">98%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">3.2s</div>
+                    <div class="stat-label">Avg Capture Time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">4K+</div>
+                    <div class="stat-label">Active Users</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Canvas Element Test</h2>
+            <p>This section contains a canvas element with drawn content:</p>
+            <div class="canvas-demo">
+                <canvas id="testCanvas" width="600" height="300"></canvas>
+            </div>
+        </div>
+
+        <div class="section tall-content">
+            <h2>📏 Tall Content Section (150vh)</h2>
+            <p style="margin-bottom: 2rem;">
+                This section is intentionally very tall (1.5x viewport height) to test the auto-scroll 
+                and stitching functionality. Try selecting from the top of this section to the bottom.
+            </p>
+            <p style="margin-bottom: 2rem;">
+                The extension should automatically scroll the page as you drag your selection downward,
+                and then stitch multiple viewport captures together seamlessly.
+            </p>
+            <div style="margin: 4rem 0; text-align: center; font-size: 3rem; opacity: 0.3;">
+                ⬇️ Keep scrolling ⬇️
+            </div>
+            <div style="margin: 4rem 0; text-align: center; font-size: 2rem; opacity: 0.5;">
+                <p>Middle of tall section</p>
+                <p style="font-size: 1rem; margin-top: 1rem;">
+                    Try selecting from above to below this point
+                </p>
+            </div>
+            <div style="margin: 4rem 0; text-align: center; font-size: 3rem; opacity: 0.3;">
+                ⬇️ Almost there ⬇️
+            </div>
+            <div style="text-align: center; padding: 2rem; background: #667eea; color: white; border-radius: 8px;">
+                <h3>Bottom of Tall Section ✓</h3>
+                <p style="margin-top: 1rem;">
+                    If you captured from the top to here, the stitching algorithm did its job!
+                </p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Final Notes</h2>
+            <p style="margin-bottom: 1rem;">
+                <strong>Expected Behavior:</strong>
+            </p>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li>Selection overlay appears immediately after clicking extension icon</li>
+                <li>Blue dashed box follows your mouse during drag</li>
+                <li>Page auto-scrolls when mouse approaches viewport edges</li>
+                <li>Toast notification appears during and after capture</li>
+                <li>Screenshot is automatically copied to clipboard</li>
+                <li>Original scroll position is restored after capture</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Draw something on the canvas
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Gradient background
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        gradient.addColorStop(0, '#667eea');
+        gradient.addColorStop(1, '#764ba2');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw some shapes
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(150, 150, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffeb3b';
+        ctx.fillRect(250, 100, 100, 100);
+
+        ctx.strokeStyle = '#f44336';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(400, 100);
+        ctx.lineTo(500, 200);
+        ctx.lineTo(400, 200);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Canvas Element', canvas.width / 2, 250);
+    </script>
+</body>
+</html>
