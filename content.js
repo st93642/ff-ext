@@ -1,0 +1,448 @@
+// Content script for Screenshot Area Capture extension
+
+(function() {
+  'use strict';
+
+  // Prevent multiple injections
+  if (window.__screenshotExtensionLoaded) {
+    return;
+  }
+  window.__screenshotExtensionLoaded = true;
+
+  let isSelecting = false;
+  let startX = 0;
+  let startY = 0;
+  let overlay = null;
+  let selectionBox = null;
+  let autoScrollInterval = null;
+  let autoScrollVelocityX = 0;
+  let autoScrollVelocityY = 0;
+
+  const EDGE_THRESHOLD = 60; // px from edge to trigger auto-scroll
+  const SCROLL_SPEED = 18; // px per frame
+  const MIN_SELECTION_SIZE = 10; // minimum 10x10px
+
+  // Create selection UI
+  function createSelectionUI() {
+    // Create overlay
+    overlay = document.createElement('div');
+    overlay.id = '__screenshot_overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2147483647;
+      cursor: crosshair;
+      background: rgba(0, 0, 0, 0.1);
+    `;
+
+    // Create selection box
+    selectionBox = document.createElement('div');
+    selectionBox.id = '__screenshot_selection';
+    selectionBox.style.cssText = `
+      position: fixed;
+      border: 2px dashed #0066ff;
+      background: rgba(0, 102, 255, 0.1);
+      display: none;
+      pointer-events: none;
+      z-index: 2147483648;
+      box-sizing: border-box;
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(selectionBox);
+  }
+
+  // Remove selection UI
+  function removeSelectionUI() {
+    if (overlay) {
+      overlay.remove();
+      overlay = null;
+    }
+    if (selectionBox) {
+      selectionBox.remove();
+      selectionBox = null;
+    }
+    stopAutoScroll();
+  }
+
+  // Auto-scroll functionality
+  function startAutoScroll() {
+    if (autoScrollInterval) return;
+
+    autoScrollInterval = setInterval(() => {
+      if (autoScrollVelocityX !== 0 || autoScrollVelocityY !== 0) {
+        window.scrollBy(autoScrollVelocityX, autoScrollVelocityY);
+      }
+    }, 16); // ~60fps
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      autoScrollInterval = null;
+    }
+    autoScrollVelocityX = 0;
+    autoScrollVelocityY = 0;
+  }
+
+  function updateAutoScroll(clientX, clientY) {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Calculate X velocity
+    if (clientX < EDGE_THRESHOLD) {
+      autoScrollVelocityX = -SCROLL_SPEED;
+    } else if (clientX > viewportWidth - EDGE_THRESHOLD) {
+      autoScrollVelocityX = SCROLL_SPEED;
+    } else {
+      autoScrollVelocityX = 0;
+    }
+
+    // Calculate Y velocity
+    if (clientY < EDGE_THRESHOLD) {
+      autoScrollVelocityY = -SCROLL_SPEED;
+    } else if (clientY > viewportHeight - EDGE_THRESHOLD) {
+      autoScrollVelocityY = SCROLL_SPEED;
+    } else {
+      autoScrollVelocityY = 0;
+    }
+  }
+
+  // Handle mouse down
+  function handleMouseDown(e) {
+    if (e.button !== 0) return; // Only left click
+
+    isSelecting = true;
+    startX = e.clientX + window.scrollX;
+    startY = e.clientY + window.scrollY;
+
+    selectionBox.style.display = 'block';
+    startAutoScroll();
+
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  // Handle mouse move
+  function handleMouseMove(e) {
+    if (!isSelecting) return;
+
+    const currentX = e.clientX + window.scrollX;
+    const currentY = e.clientY + window.scrollY;
+
+    const left = Math.min(startX, currentX);
+    const top = Math.min(startY, currentY);
+    const width = Math.abs(currentX - startX);
+    const height = Math.abs(currentY - startY);
+
+    // Update selection box position (fixed positioning relative to viewport)
+    selectionBox.style.left = (left - window.scrollX) + 'px';
+    selectionBox.style.top = (top - window.scrollY) + 'px';
+    selectionBox.style.width = width + 'px';
+    selectionBox.style.height = height + 'px';
+
+    // Update auto-scroll based on mouse position
+    updateAutoScroll(e.clientX, e.clientY);
+
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  // Handle mouse up - trigger capture
+  async function handleMouseUp(e) {
+    if (!isSelecting) return;
+
+    stopAutoScroll();
+    isSelecting = false;
+
+    const endX = e.clientX + window.scrollX;
+    const endY = e.clientY + window.scrollY;
+
+    const left = Math.min(startX, endX);
+    const top = Math.min(startY, endY);
+    const width = Math.abs(endX - startX);
+    const height = Math.abs(endY - startY);
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Check minimum size
+    if (width < MIN_SELECTION_SIZE || height < MIN_SELECTION_SIZE) {
+      removeSelectionUI();
+      return;
+    }
+
+    // Capture the selected area
+    try {
+      await captureArea(left, top, width, height);
+    } catch (error) {
+      console.error('Capture failed:', error);
+      showNotification('Screenshot capture failed: ' + error.message, true);
+      browser.runtime.sendMessage({
+        action: "captureError",
+        error: error.message
+      });
+    }
+
+    removeSelectionUI();
+  }
+
+  // Handle escape key
+  function handleKeyDown(e) {
+    if (e.key === 'Escape' && isSelecting) {
+      isSelecting = false;
+      stopAutoScroll();
+      removeSelectionUI();
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
+  // Main capture function with stitching
+  async function captureArea(left, top, width, height) {
+    showNotification('Capturing screenshot...', false, true);
+
+    // Store original scroll position
+    const originalScrollX = window.scrollX;
+    const originalScrollY = window.scrollY;
+
+    try {
+      const canvas = await captureWithStitching(left, top, width, height);
+      
+      // Convert canvas to blob
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to convert canvas to blob'));
+          }
+        }, 'image/png');
+      });
+
+      // Copy to clipboard
+      await copyToClipboard(blob);
+      
+      showNotification('Screenshot copied to clipboard!', false);
+      
+      browser.runtime.sendMessage({
+        action: "captureDone"
+      });
+    } finally {
+      // Restore original scroll position
+      window.scrollTo(originalScrollX, originalScrollY);
+    }
+  }
+
+  // Capture with stitching for large areas
+  async function captureWithStitching(left, top, width, height) {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Check if area fits in viewport
+    const fitsInViewport = width <= viewportWidth && height <= viewportHeight;
+    
+    if (fitsInViewport) {
+      // Simple single capture
+      return await captureSingleView(left, top, width, height);
+    } else {
+      // Need stitching
+      return await captureMultipleViews(left, top, width, height);
+    }
+  }
+
+  // Simple single viewport capture
+  async function captureSingleView(left, top, width, height) {
+    // Scroll to position
+    window.scrollTo(left, top);
+    await sleep(100); // Wait for scroll to complete
+
+    // Capture visible page
+    const pageCanvas = await captureVisiblePage();
+    
+    // Crop to selection
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const ctx = finalCanvas.getContext('2d');
+    
+    ctx.drawImage(
+      pageCanvas,
+      0, 0, width, height,
+      0, 0, width, height
+    );
+    
+    return finalCanvas;
+  }
+
+  // Multi-view capture with stitching
+  async function captureMultipleViews(left, top, width, height) {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Calculate overlap (20% to ensure smooth stitching)
+    const overlapY = Math.floor(viewportHeight * 0.2);
+    const overlapX = Math.floor(viewportWidth * 0.2);
+    
+    const stepY = viewportHeight - overlapY;
+    const stepX = viewportWidth - overlapX;
+    
+    // Calculate number of rows and columns needed
+    const numRows = Math.ceil(height / stepY);
+    const numCols = Math.ceil(width / stepX);
+    
+    // Create final canvas
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const ctx = finalCanvas.getContext('2d');
+    
+    // Capture each section
+    for (let row = 0; row < numRows; row++) {
+      for (let col = 0; col < numCols; col++) {
+        const scrollX = left + (col * stepX);
+        const scrollY = top + (row * stepY);
+        
+        // Scroll to position
+        window.scrollTo(scrollX, scrollY);
+        await sleep(150); // Wait for scroll and rendering
+        
+        // Capture this view
+        const viewCanvas = await captureVisiblePage();
+        
+        // Calculate source and destination rectangles
+        const srcX = 0;
+        const srcY = 0;
+        const srcWidth = Math.min(viewportWidth, width - (col * stepX));
+        const srcHeight = Math.min(viewportHeight, height - (row * stepY));
+        
+        const destX = col * stepX;
+        const destY = row * stepY;
+        
+        // Draw this section onto final canvas
+        ctx.drawImage(
+          viewCanvas,
+          srcX, srcY, srcWidth, srcHeight,
+          destX, destY, srcWidth, srcHeight
+        );
+      }
+    }
+    
+    return finalCanvas;
+  }
+
+  // Capture the current visible page
+  async function captureVisiblePage() {
+    // Request capture from background script using tabs.captureVisibleTab
+    const dataUrl = await browser.runtime.sendMessage({
+      action: "captureVisibleTab"
+    });
+    
+    // Convert data URL to canvas
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    await new Promise((resolve, reject) => {
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        resolve();
+      };
+      img.onerror = () => reject(new Error('Failed to load captured image'));
+      img.src = dataUrl;
+    });
+    
+    return canvas;
+  }
+
+  // Copy image blob to clipboard
+  async function copyToClipboard(blob) {
+    try {
+      const item = new ClipboardItem({ 'image/png': blob });
+      await navigator.clipboard.write([item]);
+    } catch (error) {
+      throw new Error('Failed to copy to clipboard: ' + error.message);
+    }
+  }
+
+  // Show notification to user
+  function showNotification(message, isError = false, isPersistent = false) {
+    // Remove any existing notification
+    const existing = document.getElementById('__screenshot_notification');
+    if (existing) {
+      existing.remove();
+    }
+
+    const notification = document.createElement('div');
+    notification.id = '__screenshot_notification';
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${isError ? '#f44336' : '#4CAF50'};
+      color: white;
+      padding: 16px 24px;
+      border-radius: 4px;
+      z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease-out;
+    `;
+
+    // Add animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    document.body.appendChild(notification);
+
+    if (!isPersistent) {
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
+  }
+
+  // Utility: sleep
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Start selection mode
+  function startSelection() {
+    if (isSelecting) return;
+
+    createSelectionUI();
+
+    overlay.addEventListener('mousedown', handleMouseDown);
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('keydown', handleKeyDown);
+  }
+
+  // Listen for messages from background script
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'startSelection') {
+      startSelection();
+    }
+  });
+})();

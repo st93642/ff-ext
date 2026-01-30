@@ -1,0 +1,23 @@
+# Firefox Extension
+web-ext-artifacts/
+*.xpi
+*.zip
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+.cache/
