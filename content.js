@@ -307,6 +307,160 @@
             }
         }
         
+        // Method 6: Try using Reflect API for deeper property access (Proxy bypass)
+        // Uses Reflect to access properties which can bypass some Proxy traps
+        if (!scrolled) {
+            try {
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                if (targetElement) {
+                    // Use Reflect.set which can bypass certain property setters
+                    const scrollTopSet = Reflect.set(targetElement, 'scrollTop', clampedTargetY);
+                    const scrollLeftSet = Reflect.set(targetElement, 'scrollLeft', clampedTargetX);
+                    
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+        }
+        
+        // Method 7: Try Object.defineProperty to temporarily override scroll blocking
+        // Temporarily defines our own getter/setter to bypass restrictions
+        if (!scrolled) {
+            try {
+                const targetElement = document.scrollingElement || document.documentElement;
+                if (targetElement) {
+                    // Store original descriptors
+                    const originalTopDescriptor = Object.getOwnPropertyDescriptor(targetElement, 'scrollTop');
+                    const originalLeftDescriptor = Object.getOwnPropertyDescriptor(targetElement, 'scrollLeft');
+                    
+                    // Define our own properties that can't be blocked
+                    let internalScrollTop = initialScrollY;
+                    let internalScrollLeft = initialScrollX;
+                    
+                    Object.defineProperty(targetElement, 'scrollTop', {
+                        get: () => internalScrollTop,
+                        set: (value) => {
+                            internalScrollTop = value;
+                            // Force browser to scroll by updating the native scroll
+                            const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                            if (nativeDescriptor && nativeDescriptor.set) {
+                                nativeDescriptor.set.call(targetElement, value);
+                            }
+                        },
+                        configurable: true
+                    });
+                    
+                    Object.defineProperty(targetElement, 'scrollLeft', {
+                        get: () => internalScrollLeft,
+                        set: (value) => {
+                            internalScrollLeft = value;
+                            const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                            if (nativeDescriptor && nativeDescriptor.set) {
+                                nativeDescriptor.set.call(targetElement, value);
+                            }
+                        },
+                        configurable: true
+                    });
+                    
+                    // Now try to set the scroll position with our override
+                    targetElement.scrollTop = clampedTargetY;
+                    targetElement.scrollLeft = clampedTargetX;
+                    
+                    // Restore original descriptors
+                    if (originalTopDescriptor) {
+                        Object.defineProperty(targetElement, 'scrollTop', originalTopDescriptor);
+                    } else {
+                        delete targetElement.scrollTop;
+                    }
+                    if (originalLeftDescriptor) {
+                        Object.defineProperty(targetElement, 'scrollLeft', originalLeftDescriptor);
+                    } else {
+                        delete targetElement.scrollLeft;
+                    }
+                    
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+        }
+        
+        // Method 8: Try scrollIntoView on an invisible element (creative bypass)
+        if (!scrolled && document.body && (clampedTargetY !== initialScrollY || clampedTargetX !== initialScrollX)) {
+            let tempElement = null;
+            try {
+                // Create a temporary invisible element at the target scroll position
+                tempElement = document.createElement('div');
+                tempElement.style.cssText = `
+                    position: absolute;
+                    left: ${clampedTargetX}px;
+                    top: ${clampedTargetY}px;
+                    width: 1px;
+                    height: 1px;
+                    visibility: hidden;
+                    pointer-events: none;
+                `;
+                document.body.appendChild(tempElement);
+                
+                // Use scrollIntoView to scroll to it
+                tempElement.scrollIntoView({ block: 'start', inline: 'start', behavior: 'auto' });
+                
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
+            } finally {
+                // Always clean up the temporary element
+                if (tempElement && tempElement.parentNode) {
+                    tempElement.parentNode.removeChild(tempElement);
+                }
+            }
+        }
+        
+        // Method 9: Try dispatching a scroll event to trigger natural scrolling
+        // Some frameworks listen to scroll events to update internal state
+        if (!scrolled) {
+            try {
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                if (targetElement) {
+                    // Attempt to force scroll position
+                    const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                    if (nativeDescriptor && nativeDescriptor.set) {
+                        nativeDescriptor.set.call(targetElement, clampedTargetY);
+                    }
+                    const nativeDescriptorLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                    if (nativeDescriptorLeft && nativeDescriptorLeft.set) {
+                        nativeDescriptorLeft.set.call(targetElement, clampedTargetX);
+                    }
+                    
+                    // Dispatch scroll event to trigger any listeners
+                    const scrollEvent = new Event('scroll', { bubbles: true, cancelable: false });
+                    targetElement.dispatchEvent(scrollEvent);
+                    window.dispatchEvent(scrollEvent);
+                    
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
+                }
+            } catch (e) {
+                // Method failed
+            }
+        }
+        
         return scrolled;
     }
     
