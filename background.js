@@ -34,5 +34,20 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(null);
       });
     return true; // Keep channel open for async response
+  } else if (message.action === "copyImageToClipboard") {
+    if (!browser.clipboard || !browser.clipboard.setImageData) {
+      sendResponse({ success: false, error: "Clipboard image API not available" });
+      return false;
+    }
+
+    browser.clipboard.setImageData(message.imageData, message.imageType)
+      .then(() => {
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        console.error("Failed to write image to clipboard:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true;
   }
 });
