@@ -34,13 +34,13 @@ browser.action.onClicked.addListener(async (tab) => {
 // Handle messages from content script
 browser.runtime.onMessage.addListener(async (message, sender) => {
     if (message.action === 'captureSelection') {
-        await captureAndCropScreenshot(sender.tab.id, message.rect, message.documentRect, message.currentScrollY);
+        await captureAndCropScreenshot(sender.tab.id, message.rect, message.documentRect, message.currentScrollY, message.currentScrollX);
     }
     return true; // Keep message channel open for async operations
 });
 
 // Capture and crop screenshot
-async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrollY) {
+async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrollY, originalScrollX) {
     console.log('Capturing selection:', rect, 'Document rect:', documentRect);
     
     try {
@@ -51,37 +51,52 @@ async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrol
         
         // Determine if we need to scroll to capture the selection
         // If the selection extends beyond the current viewport, we need to position it optimally
-        const viewportHeight = await browser.scripting.executeScript({
+        const viewportDimensions = await browser.scripting.executeScript({
             target: { tabId: tabId },
-            func: () => window.innerHeight
+            func: () => ({ width: window.innerWidth, height: window.innerHeight })
         }).then(results => results[0].result);
         
         let needsScroll = false;
         let targetScrollY = originalScrollY;
+        let targetScrollX = originalScrollX;
         
-        // Check if selection is fully visible in current viewport
-        if (rect.top < 0 || rect.top + rect.height > viewportHeight) {
+        // Check if selection is fully visible in current viewport (vertically)
+        if (rect.top < 0 || rect.top + rect.height > viewportDimensions.height) {
             needsScroll = true;
             // Scroll to center the selection vertically
-            targetScrollY = documentRect.top - (viewportHeight - documentRect.height) / 2;
+            targetScrollY = documentRect.top - (viewportDimensions.height - documentRect.height) / 2;
             targetScrollY = Math.max(0, targetScrollY); // Don't scroll above page
+        }
+        
+        // Check if selection is fully visible in current viewport (horizontally)
+        if (rect.left < 0 || rect.left + rect.width > viewportDimensions.width) {
+            needsScroll = true;
+            // Scroll to center the selection horizontally
+            targetScrollX = documentRect.left - (viewportDimensions.width - documentRect.width) / 2;
+            targetScrollX = Math.max(0, targetScrollX); // Don't scroll left of page
         }
         
         // If we need to scroll, do it before capturing
         if (needsScroll) {
             await browser.scripting.executeScript({
                 target: { tabId: tabId },
-                func: (scrollY) => {
-                    window.scrollTo(0, scrollY);
+                func: (scrollX, scrollY) => {
+                    window.scrollTo(scrollX, scrollY);
                 },
-                args: [targetScrollY]
+                args: [targetScrollX, targetScrollY]
             });
             
             // Wait a bit for the scroll to complete and page to render
             await new Promise(resolve => setTimeout(resolve, 100));
             
             // Recalculate viewport-relative coordinates based on new scroll position
-            rect.top = documentRect.top - targetScrollY;
+            // Create a new rect object instead of modifying the parameter
+            rect = {
+                left: documentRect.left - targetScrollX,
+                top: documentRect.top - targetScrollY,
+                width: rect.width,
+                height: rect.height
+            };
         }
         
         // Capture the entire visible tab
@@ -173,10 +188,10 @@ async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrol
                 try {
                     await browser.scripting.executeScript({
                         target: { tabId: tabId },
-                        func: (scrollY) => {
-                            window.scrollTo(0, scrollY);
+                        func: (scrollX, scrollY) => {
+                            window.scrollTo(scrollX, scrollY);
                         },
-                        args: [originalScrollY]
+                        args: [originalScrollX, originalScrollY]
                     });
                 } catch (e) {
                     console.log('Could not restore scroll position:', e);

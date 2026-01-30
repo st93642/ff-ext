@@ -12,6 +12,7 @@
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
+    let currentScrollDirection = null; // Track scroll direction independently
     
     // Create overlay elements
     function createOverlay() {
@@ -87,17 +88,25 @@
         return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     }
     
+    // Helper function to get current horizontal scroll position
+    function getCurrentScrollX() {
+        return window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+    }
+    
     // Helper function to update selection box dimensions
     function updateSelectionBox() {
         if (isSelecting && selectionBox) {
             // Convert document coordinates back to viewport coordinates for display
             const currentScrollY = getCurrentScrollY();
+            const currentScrollX = getCurrentScrollX();
+            const startViewportX = startDocumentX - currentScrollX;
             const startViewportY = startDocumentY - currentScrollY;
+            const currentViewportX = currentMouseX;
             const currentViewportY = currentMouseY;
             
-            const left = Math.min(startX, currentMouseX);
+            const left = Math.min(startViewportX, currentViewportX);
             const top = Math.min(startViewportY, currentViewportY);
-            const width = Math.abs(currentMouseX - startX);
+            const width = Math.abs(currentViewportX - startViewportX);
             const height = Math.abs(currentViewportY - startViewportY);
             
             selectionBox.style.left = left + 'px';
@@ -117,7 +126,8 @@
         
         // Store document coordinates for proper handling of scrolling
         const scrollY = getCurrentScrollY();
-        startDocumentX = startX;
+        const scrollX = getCurrentScrollX();
+        startDocumentX = startX + scrollX;
         startDocumentY = startY + scrollY;
         
         currentMouseX = e.clientX; // Initialize current mouse position
@@ -152,19 +162,15 @@
     // Robust scroll function that works on all websites
     // Tries multiple methods with early return on success
     function performScroll(deltaY) {
-        // Helper to get current scroll position consistently
-        function getCurrentScroll() {
-            return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-        }
-        
-        const initialScroll = getCurrentScroll();
+        // Use the helper function for consistency
+        const initialScroll = getCurrentScrollY();
         const targetScroll = initialScroll + deltaY;
         
         // Method 1: Try window.scrollBy() (standard method)
         try {
             window.scrollBy(0, deltaY);
             // Check if it worked (allow 1px tolerance for rounding)
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
@@ -172,7 +178,7 @@
         // Method 2: Try window.scroll() with absolute position
         try {
             window.scroll(0, targetScroll);
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
@@ -181,7 +187,7 @@
         try {
             if (document.scrollingElement) {
                 document.scrollingElement.scrollTop = targetScroll;
-                if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
             }
         } catch (e) {
             // Continue to next method
@@ -190,7 +196,7 @@
         // Method 4: Try document.documentElement.scrollTop
         try {
             document.documentElement.scrollTop = targetScroll;
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
@@ -219,7 +225,7 @@
         const isNearTop = mouseY < scrollThreshold;
         
         // If we're in a scroll zone and not already scrolling in that direction
-        if (isNearBottom && canScrollDown && (!scrollInterval || scrollInterval._direction !== 'down')) {
+        if (isNearBottom && canScrollDown && currentScrollDirection !== 'down') {
             // Clear any existing scroll interval
             if (scrollInterval) {
                 clearInterval(scrollInterval);
@@ -231,6 +237,7 @@
                 if ((window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight) {
                     clearInterval(scrollInterval);
                     scrollInterval = null;
+                    currentScrollDirection = null;
                     return;
                 }
                 
@@ -240,10 +247,10 @@
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();
             }, 16); // ~60fps
-            scrollInterval._direction = 'down';
+            currentScrollDirection = 'down';
         }
         // Check if mouse is near top edge and can scroll up
-        else if (isNearTop && canScrollUp && (!scrollInterval || scrollInterval._direction !== 'up')) {
+        else if (isNearTop && canScrollUp && currentScrollDirection !== 'up') {
             // Clear any existing scroll interval
             if (scrollInterval) {
                 clearInterval(scrollInterval);
@@ -255,6 +262,7 @@
                 if (window.scrollY <= 0) {
                     clearInterval(scrollInterval);
                     scrollInterval = null;
+                    currentScrollDirection = null;
                     return;
                 }
                 
@@ -264,12 +272,13 @@
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();
             }, 16); // ~60fps
-            scrollInterval._direction = 'up';
+            currentScrollDirection = 'up';
         }
         // If we're not in a scroll zone, clear the interval
         else if (!isNearBottom && !isNearTop && scrollInterval) {
             clearInterval(scrollInterval);
             scrollInterval = null;
+            currentScrollDirection = null;
         }
     }
     
@@ -280,13 +289,15 @@
         if (scrollInterval) {
             clearInterval(scrollInterval);
             scrollInterval = null;
+            currentScrollDirection = null;
         }
         
         isSelecting = false;
         
-        // Get current scroll position and calculate document coordinates
+        // Get current scroll positions and calculate document coordinates
         const currentScrollY = getCurrentScrollY();
-        const currentDocumentX = currentMouseX;
+        const currentScrollX = getCurrentScrollX();
+        const currentDocumentX = currentMouseX + currentScrollX;
         const currentDocumentY = currentMouseY + currentScrollY;
         
         // Calculate selection in document coordinates
@@ -298,8 +309,9 @@
         // Only capture if selection has some size
         if (docWidth > 5 && docHeight > 5) {
             // Calculate viewport coordinates for the selection
-            // We need to scroll to position the selection optimally in the viewport
-            const viewportLeft = docLeft;
+            // These coordinates are passed to the background script which will
+            // check if the selection is visible and scroll if necessary before capture
+            const viewportLeft = docLeft - currentScrollX;
             const viewportTop = docTop - currentScrollY;
             
             // Send message to background script to capture
@@ -318,7 +330,8 @@
                     width: docWidth,
                     height: docHeight
                 },
-                currentScrollY: currentScrollY
+                currentScrollY: currentScrollY,
+                currentScrollX: currentScrollX
             });
         }
         
