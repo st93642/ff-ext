@@ -5,6 +5,8 @@
     let isSelecting = false;
     let startX = 0;
     let startY = 0;
+    let currentMouseX = 0; // Track current mouse X position for auto-scroll
+    let currentMouseY = 0; // Track current mouse Y position for auto-scroll
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
@@ -78,6 +80,21 @@
         isSelecting = false;
     }
     
+    // Helper function to update selection box dimensions
+    function updateSelectionBox() {
+        if (isSelecting && selectionBox) {
+            const left = Math.min(startX, currentMouseX);
+            const top = Math.min(startY, currentMouseY);
+            const width = Math.abs(currentMouseX - startX);
+            const height = Math.abs(currentMouseY - startY);
+            
+            selectionBox.style.left = left + 'px';
+            selectionBox.style.top = top + 'px';
+            selectionBox.style.width = width + 'px';
+            selectionBox.style.height = height + 'px';
+        }
+    }
+    
     // Handle mouse down - start selection
     function handleMouseDown(e) {
         if (e.button !== 0) return; // Only left mouse button
@@ -85,6 +102,8 @@
         isSelecting = true;
         startX = e.clientX;
         startY = e.clientY;
+        currentMouseX = e.clientX; // Initialize current mouse position
+        currentMouseY = e.clientY;
         
         selectionBox.style.left = startX + 'px';
         selectionBox.style.top = startY + 'px';
@@ -99,23 +118,15 @@
     function handleMouseMove(e) {
         if (!isSelecting) return;
         
-        const currentX = e.clientX;
-        const currentY = e.clientY;
+        // Update current mouse position for use during auto-scroll
+        currentMouseX = e.clientX;
+        currentMouseY = e.clientY;
         
-        // Calculate selection box dimensions (viewport-relative)
-        const left = Math.min(startX, currentX);
-        const top = Math.min(startY, currentY);
-        const width = Math.abs(currentX - startX);
-        const height = Math.abs(currentY - startY);
-        
-        // Update selection box position
-        selectionBox.style.left = left + 'px';
-        selectionBox.style.top = top + 'px';
-        selectionBox.style.width = width + 'px';
-        selectionBox.style.height = height + 'px';
+        // Update selection box using helper function
+        updateSelectionBox();
         
         // Auto-scroll logic
-        handleAutoScroll(currentY);
+        handleAutoScroll(currentMouseY);
         
         e.preventDefault();
     }
@@ -144,6 +155,13 @@
                 }
                 
                 window.scrollBy(0, scrollSpeed);
+                
+                // Adjust startY to keep it anchored to the same document position
+                // As we scroll down, the start point appears to move up in viewport coordinates
+                startY -= scrollSpeed;
+                
+                // Update selection box to reflect the adjusted start position
+                updateSelectionBox();
             }, 16); // ~60fps
         }
         // Check if mouse is near top edge and can scroll up
@@ -157,6 +175,13 @@
                 }
                 
                 window.scrollBy(0, -scrollSpeed);
+                
+                // Adjust startY to keep it anchored to the same document position
+                // As we scroll up, the start point appears to move down in viewport coordinates
+                startY += scrollSpeed;
+                
+                // Update selection box to reflect the adjusted start position
+                updateSelectionBox();
             }, 16); // ~60fps
         }
     }
