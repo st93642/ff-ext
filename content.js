@@ -164,83 +164,106 @@
     function performScroll(deltaY) {
         // Use the helper function for consistency
         const initialScroll = getCurrentScrollY();
-        const targetScroll = initialScroll + deltaY;
+        const targetScroll = Math.max(0, initialScroll + deltaY); // Ensure non-negative
         
-        // Method 1: Try window.scrollBy() with behavior smooth (standard method)
-        try {
-            window.scrollBy({ top: deltaY, behavior: 'auto' });
-            // Check if it worked (allow 1px tolerance for rounding)
-            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
-        } catch (e) {
-            // Try without options object (older browsers)
+        // Clamp target to document limits
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const clampedTarget = Math.min(maxScroll, targetScroll);
+        
+        let scrolled = false;
+        
+        // Method 1: Try window.scrollBy() with behavior auto (standard method)
+        if (!scrolled) {
             try {
-                window.scrollBy(0, deltaY);
-                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
-            } catch (e2) {
-                // Continue to next method
+                window.scrollBy({ top: deltaY, behavior: 'auto' });
+                // Check if any scroll happened (allow 1px tolerance for rounding/constraints)
+                const newScroll = getCurrentScrollY();
+                if (Math.abs(newScroll - initialScroll) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Try without options object (older browsers)
+                try {
+                    window.scrollBy(0, deltaY);
+                    const newScroll = getCurrentScrollY();
+                    if (Math.abs(newScroll - initialScroll) >= 1) {
+                        scrolled = true;
+                    }
+                } catch (e2) {
+                    // Continue to next method
+                }
             }
         }
         
         // Method 2: Try window.scroll() with absolute position
-        try {
-            window.scroll(0, targetScroll);
-            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
-        } catch (e) {
-            // Continue to next method
+        if (!scrolled) {
+            try {
+                window.scroll(0, clampedTarget);
+                const newScroll = getCurrentScrollY();
+                if (Math.abs(newScroll - initialScroll) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
+            }
         }
         
         // Method 3: Direct manipulation of scrollTop on scrollingElement (bypasses most restrictions)
-        try {
-            if (document.scrollingElement) {
+        if (!scrolled && document.scrollingElement) {
+            try {
                 // Use Object.defineProperty bypass for sites that override scrollTop
                 const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
                 if (descriptor && descriptor.set) {
-                    descriptor.set.call(document.scrollingElement, targetScroll);
+                    descriptor.set.call(document.scrollingElement, clampedTarget);
                 } else {
-                    document.scrollingElement.scrollTop = targetScroll;
+                    document.scrollingElement.scrollTop = clampedTarget;
                 }
-                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
+                const newScroll = getCurrentScrollY();
+                if (Math.abs(newScroll - initialScroll) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
             }
-        } catch (e) {
-            // Continue to next method
         }
         
         // Method 4: Try document.documentElement.scrollTop with descriptor bypass
-        try {
-            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-            if (descriptor && descriptor.set) {
-                descriptor.set.call(document.documentElement, targetScroll);
-            } else {
-                document.documentElement.scrollTop = targetScroll;
+        if (!scrolled) {
+            try {
+                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                if (descriptor && descriptor.set) {
+                    descriptor.set.call(document.documentElement, clampedTarget);
+                } else {
+                    document.documentElement.scrollTop = clampedTarget;
+                }
+                const newScroll = getCurrentScrollY();
+                if (Math.abs(newScroll - initialScroll) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
             }
-            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
-        } catch (e) {
-            // Continue to next method
         }
         
         // Method 5: Try document.body.scrollTop with descriptor bypass
-        try {
-            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-            if (descriptor && descriptor.set) {
-                descriptor.set.call(document.body, targetScroll);
-            } else {
-                document.body.scrollTop = targetScroll;
+        if (!scrolled && document.body) {
+            try {
+                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                if (descriptor && descriptor.set) {
+                    descriptor.set.call(document.body, clampedTarget);
+                } else {
+                    document.body.scrollTop = clampedTarget;
+                }
+                const newScroll = getCurrentScrollY();
+                if (Math.abs(newScroll - initialScroll) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
             }
-            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
-        } catch (e) {
-            // Continue to next method
         }
         
-        // Method 6: Try manipulating transform property (ultimate bypass for locked scroll)
-        try {
-            const html = document.documentElement;
-            const currentTransform = window.getComputedStyle(html).transform;
-            const currentY = currentTransform !== 'none' ? parseFloat(currentTransform.split(',')[5] || 0) : 0;
-            html.style.transform = `translateY(${currentY - deltaY}px)`;
-            // Note: This doesn't actually scroll, but visually moves content
-        } catch (e) {
-            // All methods failed - scroll may be heavily restricted on this site
-        }
+        return scrolled;
     }
     
     // Handle auto-scroll when mouse is near viewport edges
@@ -274,8 +297,16 @@
                     return;
                 }
                 
-                // Use robust scroll method
-                performScroll(scrollSpeed);
+                // Use robust scroll method and check if it succeeded
+                const scrolled = performScroll(scrollSpeed);
+                
+                // If scroll failed, the site may be preventing scroll - stop trying
+                if (!scrolled) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    currentScrollDirection = null;
+                    return;
+                }
                 
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();
@@ -299,8 +330,16 @@
                     return;
                 }
                 
-                // Use robust scroll method
-                performScroll(-scrollSpeed);
+                // Use robust scroll method and check if it succeeded
+                const scrolled = performScroll(-scrollSpeed);
+                
+                // If scroll failed, the site may be preventing scroll - stop trying
+                if (!scrolled) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    currentScrollDirection = null;
+                    return;
+                }
                 
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();

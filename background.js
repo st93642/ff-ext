@@ -107,12 +107,16 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
         
         console.log(`Need ${numVerticalCaptures}x${numHorizontalCaptures} captures`);
         
-        // Capture tiles
+        // Capture tiles with overlap to prevent gaps
+        const overlap = 2; // pixels of overlap between tiles to prevent gaps
         const captures = [];
         for (let row = 0; row < numVerticalCaptures; row++) {
             for (let col = 0; col < numHorizontalCaptures; col++) {
-                const scrollX = documentRect.left + (col * viewportWidth);
-                const scrollY = documentRect.top + (row * viewportHeight);
+                // Calculate scroll position with consideration for overlap
+                // Subtract overlap from non-first tiles to create seamless stitching
+                // Clamp to ensure non-negative scroll positions
+                const scrollX = Math.max(0, documentRect.left + (col * viewportWidth) - (col > 0 ? overlap : 0));
+                const scrollY = Math.max(0, documentRect.top + (row * viewportHeight) - (row > 0 ? overlap : 0));
                 
                 // Scroll to position
                 await browser.scripting.executeScript({
@@ -121,14 +125,14 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
                     args: [scrollX, scrollY]
                 });
                 
-                // Wait for render
-                await new Promise(resolve => setTimeout(resolve, 150));
+                // Wait longer for render to ensure content is fully loaded (300ms instead of 150ms)
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
                 // Capture viewport
                 const dataUrl = await browser.tabs.captureVisibleTab(null, { format: "png" });
                 captures.push({ dataUrl, row, col, scrollX, scrollY });
                 
-                console.log(`Captured tile ${row},${col}`);
+                console.log(`Captured tile ${row},${col} at scroll position (${scrollX}, ${scrollY})`);
             }
         }
         
@@ -258,8 +262,8 @@ async function captureWithScrollFallback(tabId, rect, documentRect, originalScro
                 args: [targetScrollX, targetScrollY]
             });
             
-            // Wait a bit for the scroll to complete and page to render
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Wait for the scroll to complete and page to render (increased to 300ms)
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             // Recalculate viewport-relative coordinates based on new scroll position
             // Create a new rect object instead of modifying the parameter
