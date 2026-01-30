@@ -100,19 +100,20 @@
         const currentX = e.clientX;
         const currentY = e.clientY;
         
-        // Calculate selection box dimensions
+        // Calculate selection box dimensions (viewport-relative)
         const left = Math.min(startX, currentX);
         const top = Math.min(startY, currentY);
         const width = Math.abs(currentX - startX);
         const height = Math.abs(currentY - startY);
         
+        // Update selection box position
         selectionBox.style.left = left + 'px';
         selectionBox.style.top = top + 'px';
         selectionBox.style.width = width + 'px';
         selectionBox.style.height = height + 'px';
         
         // Auto-scroll logic
-        handleAutoScroll(e.clientY);
+        handleAutoScroll(currentY);
         
         e.preventDefault();
     }
@@ -126,7 +127,7 @@
         }
         
         const scrollThreshold = 50; // pixels from edge to trigger scroll
-        const scrollSpeed = 10; // pixels per interval
+        const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
         
         // Check if mouse is near bottom edge and can scroll down
@@ -141,12 +142,6 @@
                 }
                 
                 window.scrollBy(0, scrollSpeed);
-                
-                // Update selection box position during scroll
-                if (selectionBox && isSelecting) {
-                    const currentHeight = parseInt(selectionBox.style.height);
-                    selectionBox.style.height = (currentHeight + scrollSpeed) + 'px';
-                }
             }, 16); // ~60fps
         }
         // Check if mouse is near top edge and can scroll up
@@ -160,14 +155,6 @@
                 }
                 
                 window.scrollBy(0, -scrollSpeed);
-                
-                // Update selection box position during scroll
-                if (selectionBox && isSelecting) {
-                    const currentTop = parseInt(selectionBox.style.top);
-                    const currentHeight = parseInt(selectionBox.style.height);
-                    selectionBox.style.top = (currentTop - scrollSpeed) + 'px';
-                    selectionBox.style.height = (currentHeight + scrollSpeed) + 'px';
-                }
             }, 16); // ~60fps
         }
     }
