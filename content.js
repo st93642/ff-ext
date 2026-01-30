@@ -131,6 +131,50 @@
         e.preventDefault();
     }
     
+    // Robust scroll function that works on all websites
+    // Tries multiple methods to bypass website restrictions
+    function performScroll(deltaY) {
+        const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const targetScroll = currentScroll + deltaY;
+        
+        // Method 1: Try window.scrollBy() (standard method)
+        try {
+            window.scrollBy(0, deltaY);
+        } catch (e) {
+            // Silently continue to next method
+        }
+        
+        // Method 2: Try window.scroll() with absolute position
+        try {
+            window.scroll(0, targetScroll);
+        } catch (e) {
+            // Silently continue to next method
+        }
+        
+        // Method 3: Direct manipulation of scrollTop (bypasses most restrictions)
+        try {
+            if (document.scrollingElement) {
+                document.scrollingElement.scrollTop = targetScroll;
+            }
+        } catch (e) {
+            // Silently continue to next method
+        }
+        
+        // Method 4: Try document.documentElement.scrollTop
+        try {
+            document.documentElement.scrollTop = targetScroll;
+        } catch (e) {
+            // Silently continue to next method
+        }
+        
+        // Method 5: Try document.body.scrollTop (for older browsers/websites)
+        try {
+            document.body.scrollTop = targetScroll;
+        } catch (e) {
+            // All methods failed, but we tried our best
+        }
+    }
+    
     // Handle auto-scroll when mouse is near viewport edges
     function handleAutoScroll(mouseY) {
         // Clear any existing scroll interval
@@ -154,7 +198,8 @@
                     return;
                 }
                 
-                window.scrollBy(0, scrollSpeed);
+                // Use robust scroll method
+                performScroll(scrollSpeed);
                 
                 // Adjust startY to keep it anchored to the same document position
                 // As we scroll down, the start point appears to move up in viewport coordinates
@@ -174,7 +219,8 @@
                     return;
                 }
                 
-                window.scrollBy(0, -scrollSpeed);
+                // Use robust scroll method
+                performScroll(-scrollSpeed);
                 
                 // Adjust startY to keep it anchored to the same document position
                 // As we scroll up, the start point appears to move down in viewport coordinates
