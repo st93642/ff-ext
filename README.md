@@ -31,7 +31,7 @@ A Firefox extension that allows you to crop and capture screenshots with drag se
 ## Usage
 
 ### Method 1: Extension Icon
-1. Click the extension icon in the toolbar
+1. Click the camera icon in the toolbar
 2. The page will be overlaid with a dark semi-transparent layer
 3. Your cursor will change to a crosshair
 4. Click and hold the left mouse button, then drag to select the area you want to capture
@@ -44,10 +44,11 @@ A Firefox extension that allows you to crop and capture screenshots with drag se
 2. Follow steps 2-7 from Method 1
 
 ### Auto-Scroll Feature
-- When selecting an area, if you drag your mouse near the bottom edge of the viewport, the page will automatically scroll down
+- When selecting an area, if you drag your mouse near the bottom edge of the viewport (within 50 pixels), the page will automatically scroll down smoothly
+- Similarly, dragging near the top edge will scroll up
 - This allows you to navigate through the page while making your selection
+- The scroll speed is optimized for smooth, controlled movement
 - Note: The screenshot will capture only what's visible in the viewport at the moment you release the mouse button
-- The selection area expands as the page scrolls
 
 ### Canceling Selection
 - Press `ESC` key at any time to cancel the selection and close the overlay
