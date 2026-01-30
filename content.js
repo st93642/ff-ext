@@ -160,19 +160,25 @@
     }
     
     // Robust scroll function that works on all websites
-    // Tries multiple methods with early return on success
+    // Tries multiple methods including bypasses for restricted sites
     function performScroll(deltaY) {
         // Use the helper function for consistency
         const initialScroll = getCurrentScrollY();
         const targetScroll = initialScroll + deltaY;
         
-        // Method 1: Try window.scrollBy() (standard method)
+        // Method 1: Try window.scrollBy() with behavior smooth (standard method)
         try {
-            window.scrollBy(0, deltaY);
+            window.scrollBy({ top: deltaY, behavior: 'auto' });
             // Check if it worked (allow 1px tolerance for rounding)
             if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
-            // Continue to next method
+            // Try without options object (older browsers)
+            try {
+                window.scrollBy(0, deltaY);
+                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
+            } catch (e2) {
+                // Continue to next method
+            }
         }
         
         // Method 2: Try window.scroll() with absolute position
@@ -183,30 +189,57 @@
             // Continue to next method
         }
         
-        // Method 3: Direct manipulation of scrollTop (bypasses most restrictions)
+        // Method 3: Direct manipulation of scrollTop on scrollingElement (bypasses most restrictions)
         try {
             if (document.scrollingElement) {
-                document.scrollingElement.scrollTop = targetScroll;
+                // Use Object.defineProperty bypass for sites that override scrollTop
+                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                if (descriptor && descriptor.set) {
+                    descriptor.set.call(document.scrollingElement, targetScroll);
+                } else {
+                    document.scrollingElement.scrollTop = targetScroll;
+                }
                 if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
             }
         } catch (e) {
             // Continue to next method
         }
         
-        // Method 4: Try document.documentElement.scrollTop
+        // Method 4: Try document.documentElement.scrollTop with descriptor bypass
         try {
-            document.documentElement.scrollTop = targetScroll;
+            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+            if (descriptor && descriptor.set) {
+                descriptor.set.call(document.documentElement, targetScroll);
+            } else {
+                document.documentElement.scrollTop = targetScroll;
+            }
             if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
         
-        // Method 5: Try document.body.scrollTop (for older browsers/websites)
+        // Method 5: Try document.body.scrollTop with descriptor bypass
         try {
-            document.body.scrollTop = targetScroll;
-            // No check needed - last attempt
+            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+            if (descriptor && descriptor.set) {
+                descriptor.set.call(document.body, targetScroll);
+            } else {
+                document.body.scrollTop = targetScroll;
+            }
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
-            // All methods failed - scroll may be restricted on this site
+            // Continue to next method
+        }
+        
+        // Method 6: Try manipulating transform property (ultimate bypass for locked scroll)
+        try {
+            const html = document.documentElement;
+            const currentTransform = window.getComputedStyle(html).transform;
+            const currentY = currentTransform !== 'none' ? parseFloat(currentTransform.split(',')[5] || 0) : 0;
+            html.style.transform = `translateY(${currentY - deltaY}px)`;
+            // Note: This doesn't actually scroll, but visually moves content
+        } catch (e) {
+            // All methods failed - scroll may be heavily restricted on this site
         }
     }
     
