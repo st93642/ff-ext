@@ -45,7 +45,8 @@ A Firefox extension that allows you to crop and capture screenshots with drag se
 
 ### Auto-Scroll Feature
 - When selecting an area, if you drag your mouse near the bottom edge of the viewport, the page will automatically scroll down
-- This allows you to capture areas larger than the visible viewport
+- This allows you to navigate through the page while making your selection
+- Note: The screenshot will capture only what's visible in the viewport at the moment you release the mouse button
 - The selection area expands as the page scrolls
 
 ### Canceling Selection

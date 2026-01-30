@@ -22,7 +22,7 @@
             height: 100vh;
             background: rgba(0, 0, 0, 0.5);
             cursor: crosshair;
-            z-index: 2147483647;
+            z-index: 2147483646;
         `;
         
         // Create selection box
@@ -34,7 +34,7 @@
             background: rgba(0, 128, 255, 0.1);
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
             pointer-events: none;
-            z-index: 2147483648;
+            z-index: 2147483647;
             display: none;
         `;
         
@@ -45,11 +45,9 @@
         overlay.addEventListener('mousedown', handleMouseDown);
         overlay.addEventListener('mousemove', handleMouseMove);
         overlay.addEventListener('mouseup', handleMouseUp);
-        overlay.addEventListener('keydown', handleKeyDown);
         
-        // Focus overlay to receive keyboard events
-        overlay.setAttribute('tabindex', '-1');
-        overlay.focus();
+        // Add ESC key handler to document for better reliability
+        document.addEventListener('keydown', handleKeyDown);
     }
     
     // Remove overlay elements
@@ -59,11 +57,13 @@
             scrollInterval = null;
         }
         
+        // Remove keydown listener from document
+        document.removeEventListener('keydown', handleKeyDown);
+        
         if (overlay) {
             overlay.removeEventListener('mousedown', handleMouseDown);
             overlay.removeEventListener('mousemove', handleMouseMove);
             overlay.removeEventListener('mouseup', handleMouseUp);
-            overlay.removeEventListener('keydown', handleKeyDown);
             overlay.remove();
             overlay = null;
         }
@@ -129,9 +129,17 @@
         const scrollSpeed = 10; // pixels per interval
         const viewportHeight = window.innerHeight;
         
-        // Check if mouse is near bottom edge
-        if (mouseY > viewportHeight - scrollThreshold) {
+        // Check if mouse is near bottom edge and can scroll down
+        const canScrollDown = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight;
+        if (mouseY > viewportHeight - scrollThreshold && canScrollDown) {
             scrollInterval = setInterval(() => {
+                // Check if we can still scroll
+                if ((window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    return;
+                }
+                
                 window.scrollBy(0, scrollSpeed);
                 
                 // Update selection box position during scroll
@@ -141,9 +149,16 @@
                 }
             }, 16); // ~60fps
         }
-        // Check if mouse is near top edge
+        // Check if mouse is near top edge and can scroll up
         else if (mouseY < scrollThreshold && window.scrollY > 0) {
             scrollInterval = setInterval(() => {
+                // Check if we can still scroll
+                if (window.scrollY <= 0) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    return;
+                }
+                
                 window.scrollBy(0, -scrollSpeed);
                 
                 // Update selection box position during scroll
@@ -168,7 +183,7 @@
         
         isSelecting = false;
         
-        // Get selection dimensions
+        // Get selection dimensions (viewport-relative)
         const rect = {
             left: parseInt(selectionBox.style.left),
             top: parseInt(selectionBox.style.top),
@@ -178,9 +193,8 @@
         
         // Only capture if selection has some size
         if (rect.width > 5 && rect.height > 5) {
-            // Add scroll offset to get absolute position
-            rect.top += window.scrollY;
-            rect.left += window.scrollX;
+            // Coordinates are already viewport-relative (clientX/clientY based)
+            // They don't need scroll offset since captureVisibleTab only captures viewport
             
             // Send message to background script to capture
             browser.runtime.sendMessage({
