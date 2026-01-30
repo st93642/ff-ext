@@ -463,7 +463,7 @@
     const response = await browser.runtime.sendMessage({
       action: 'copyImageToClipboard',
       imageData: buffer,
-      imageType: 'image/png'
+      imageType: 'png'
     });
 
     if (!response || !response.success) {
