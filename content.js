@@ -115,13 +115,13 @@
         selectionBox.style.height = height + 'px';
         
         // Auto-scroll logic
-        handleAutoScroll(currentY);
+        handleAutoScroll(currentY, currentX);
         
         e.preventDefault();
     }
     
     // Handle auto-scroll when mouse is near viewport edges
-    function handleAutoScroll(mouseY) {
+    function handleAutoScroll(mouseY, mouseX) {
         // Clear any existing scroll interval
         if (scrollInterval) {
             clearInterval(scrollInterval);
@@ -144,6 +144,23 @@
                 }
                 
                 window.scrollBy(0, scrollSpeed);
+                
+                // Adjust startY to keep it anchored to the same document position
+                // As we scroll down, the start point appears to move up in viewport coordinates
+                startY -= scrollSpeed;
+                
+                // Update selection box to reflect the adjusted start position
+                if (isSelecting && selectionBox) {
+                    const left = Math.min(startX, mouseX);
+                    const top = Math.min(startY, mouseY);
+                    const width = Math.abs(mouseX - startX);
+                    const height = Math.abs(mouseY - startY);
+                    
+                    selectionBox.style.left = left + 'px';
+                    selectionBox.style.top = top + 'px';
+                    selectionBox.style.width = width + 'px';
+                    selectionBox.style.height = height + 'px';
+                }
             }, 16); // ~60fps
         }
         // Check if mouse is near top edge and can scroll up
@@ -157,6 +174,23 @@
                 }
                 
                 window.scrollBy(0, -scrollSpeed);
+                
+                // Adjust startY to keep it anchored to the same document position
+                // As we scroll up, the start point appears to move down in viewport coordinates
+                startY += scrollSpeed;
+                
+                // Update selection box to reflect the adjusted start position
+                if (isSelecting && selectionBox) {
+                    const left = Math.min(startX, mouseX);
+                    const top = Math.min(startY, mouseY);
+                    const width = Math.abs(mouseX - startX);
+                    const height = Math.abs(mouseY - startY);
+                    
+                    selectionBox.style.left = left + 'px';
+                    selectionBox.style.top = top + 'px';
+                    selectionBox.style.width = width + 'px';
+                    selectionBox.style.height = height + 'px';
+                }
             }, 16); // ~60fps
         }
     }
