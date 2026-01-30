@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Auto-Scroll Test Page for Screenshot Extension</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .hero h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero p {
+            font-size: 1.3em;
+            margin-bottom: 40px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        
+        .instructions {
+            background: #ffffff;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .instructions h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .test-section {
+            min-height: 600px;
+            padding: 60px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .section-1 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .section-2 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .section-3 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .section-4 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .section-5 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+        .section-6 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; }
+        
+        .test-box {
+            background: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        .test-box h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .test-box p {
+            font-size: 0.8em;
+            line-height: 1.8;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .warning {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>🖱️ Auto-Scroll Test Page</h1>
+        <p>Test the screenshot extension's auto-scroll functionality</p>
+        <div style="font-size: 0.8em; opacity: 0.9;">
+            ↓ Scroll down for testing instructions ↓
+        </div>
+    </div>
+    
+    <div style="padding: 40px; background: #f8f9fa;">
+        <div class="instructions">
+            <h2>🧪 Test Instructions</h2>
+            
+            <div class="highlight">
+                <strong>⚡ Quick Start:</strong>
+                <ol style="margin-top: 10px;">
+                    <li>Click the camera icon in your Firefox toolbar (or press <code>Ctrl+Shift+S</code>)</li>
+                    <li>Click and hold at the top of this page</li>
+                    <li>While holding the mouse button, drag slowly toward the bottom of your viewport</li>
+                    <li>Keep moving until you're within ~50 pixels of the bottom edge</li>
+                    <li><strong>Expected:</strong> The page should automatically scroll down smoothly!</li>
+                </ol>
+            </div>
+            
+            <h3 style="margin-top: 30px;">📋 Detailed Testing Steps</h3>
+            <ol>
+                <li><strong>Load the Extension:</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>Open Firefox</li>
+                        <li>Go to <code>about:debugging#/runtime/this-firefox</code></li>
+                        <li>Click "Load Temporary Add-on"</li>
+                        <li>Navigate to the extension folder and select <code>manifest.json</code></li>
+                    </ul>
+                </li>
+                
+                <li><strong>Activate Selection Mode:</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>Click the camera icon in the toolbar, OR</li>
+                        <li>Press <code>Ctrl+Shift+S</code> keyboard shortcut</li>
+                        <li>The page should overlay with a dark semi-transparent layer</li>
+                        <li>Your cursor should change to a crosshair</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Test Auto-Scroll Down:</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>Scroll to the top of this page first</li>
+                        <li>Click and hold the left mouse button near the top</li>
+                        <li>While holding, drag your mouse slowly downward</li>
+                        <li>Move the cursor to within 50 pixels of the bottom edge of the viewport</li>
+                        <li><strong>✅ EXPECTED:</strong> The page should start scrolling down automatically and smoothly</li>
+                        <li><strong>❌ BUG (if occurs):</strong> The selection stops at the viewport boundary</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Test Auto-Scroll Up:</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>Scroll to the bottom of this page</li>
+                        <li>Activate selection mode again</li>
+                        <li>Click and hold near the bottom</li>
+                        <li>Drag upward to within 50 pixels of the top edge</li>
+                        <li><strong>✅ EXPECTED:</strong> The page should scroll up automatically</li>
+                    </ul>
+                </li>
+                
+                <li><strong>Test Edge Cases:</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>Try dragging very quickly to the bottom edge</li>
+                        <li>Try holding the mouse at the bottom edge without moving</li>
+                        <li>Try selecting from one section to another that requires scrolling</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <div class="success" style="margin-top: 30px;">
+                <strong>✅ Success Criteria:</strong>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>Page scrolls smoothly when dragging near viewport edges</li>
+                    <li>Selection box continues to update during auto-scroll</li>
+                    <li>Scroll continues as long as mouse is near the edge (within 50px)</li>
+                    <li>Scroll stops when mouse moves away from edge</li>
+                    <li>Screenshot capture works correctly after auto-scrolling</li>
+                </ul>
+            </div>
+            
+            <div class="warning" style="margin-top: 20px;">
+                <strong>⚠️ What Was Fixed:</strong>
+                <p>The previous implementation attached mouse event listeners only to the overlay element. This could cause issues when dragging at viewport boundaries. The fix moves <code>mousemove</code> and <code>mouseup</code> listeners to the document, ensuring continuous mouse tracking even at viewport edges.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section section-1">
+        <div class="test-box">
+            <h3>Section 1</h3>
+            <p>This is a tall section. Try selecting from the hero section above all the way down to here!</p>
+        </div>
+    </div>
+    
+    <div class="test-section section-2">
+        <div class="test-box">
+            <h3>Section 2</h3>
+            <p>Continue dragging down... the page should automatically scroll as you approach the bottom edge.</p>
+        </div>
+    </div>
+    
+    <div class="test-section section-3">
+        <div class="test-box">
+            <h3>Section 3</h3>
+            <p>Keep going! The auto-scroll should be smooth and responsive.</p>
+        </div>
+    </div>
+    
+    <div class="test-section section-4">
+        <div class="test-box">
+            <h3>Section 4</h3>
+            <p>Almost there... test dragging from here back up to test upward scrolling.</p>
+        </div>
+    </div>
+    
+    <div class="test-section section-5">
+        <div class="test-box">
+            <h3>Section 5</h3>
+            <p>You're getting close to the end. Try selecting this entire section!</p>
+        </div>
+    </div>
+    
+    <div class="test-section section-6">
+        <div class="test-box">
+            <h3>Section 6 - End</h3>
+            <p>This is the last section. You've reached the end! Now try selecting from here back to the top.</p>
+            <p style="margin-top: 15px; font-size: 0.9em;">
+                <strong>Tip:</strong> Press ESC at any time to cancel the selection overlay.
+            </p>
+        </div>
+    </div>
+    
+    <div style="background: #2c3e50; color: white; padding: 40px; text-align: center;">
+        <h2>🎉 Testing Complete!</h2>
+        <p style="margin-top: 20px; font-size: 1.2em;">
+            If you successfully selected content across multiple sections with smooth auto-scrolling,<br>
+            the fix is working correctly!
+        </p>
+    </div>
+</body>
+</html>
