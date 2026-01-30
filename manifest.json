@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Screenshot Capture",
   "version": "1.0",
-  "description": "Capture screenshots from any webpage with a single click.",
+  "description": "Capture screenshots with area selection and auto-scroll. Click the extension icon or press Ctrl+Shift+S to start cropping.",
   "browser_specific_settings": {
     "gecko": {
       "id": "screenshot-capture@example.com"
@@ -22,10 +22,20 @@
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
-    }
+    },
+    "default_title": "Screenshot Capture (Ctrl+Shift+S)"
   },
   "background": {
     "scripts": ["background.js"]
+  },
+  "commands": {
+    "capture-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Start screenshot selection"
+    }
   },
   "icons": {
     "16": "icons/icon-16.png",

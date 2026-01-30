@@ -1,3 +1,27 @@
+# OS files
 .DS_Store
+Thumbs.db
+
+# Python
 *.pyc
 generate_icons.py
+
+# Node modules (if used)
+node_modules/
+
+# Build artifacts
+*.zip
+dist/
+build/
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
