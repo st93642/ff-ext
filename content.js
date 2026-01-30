@@ -307,6 +307,117 @@
             }
         }
         
+        // Method 6: Try HTMLElement.prototype descriptors (deeper bypass)
+        // This gets the original native setters before any site overrides
+        if (!scrolled) {
+            try {
+                const htmlElementTop = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop');
+                const htmlElementLeft = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollLeft');
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                
+                if (targetElement) {
+                    if (htmlElementTop && htmlElementTop.set) {
+                        htmlElementTop.set.call(targetElement, clampedTargetY);
+                    }
+                    if (htmlElementLeft && htmlElementLeft.set) {
+                        htmlElementLeft.set.call(targetElement, clampedTargetX);
+                    }
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+        }
+        
+        // Method 7: Try using wheel event dispatch (bypasses scroll prevention)
+        // This simulates actual mouse wheel events which some sites may not block
+        if (!scrolled) {
+            try {
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                if (targetElement && (deltaX !== 0 || deltaY !== 0)) {
+                    // Create and dispatch wheel event
+                    const wheelEvent = new WheelEvent('wheel', {
+                        deltaX: deltaX * 10, // Multiply for more noticeable effect
+                        deltaY: deltaY * 10,
+                        deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    
+                    targetElement.dispatchEvent(wheelEvent);
+                    
+                    // Small delay to allow event processing
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+        }
+        
+        // Method 8: Try scrollIntoView on an invisible element (creative bypass)
+        if (!scrolled && (clampedTargetY !== initialScrollY || clampedTargetX !== initialScrollX)) {
+            try {
+                // Create a temporary invisible element at the target scroll position
+                const tempElement = document.createElement('div');
+                tempElement.style.cssText = `
+                    position: absolute;
+                    left: ${clampedTargetX}px;
+                    top: ${clampedTargetY}px;
+                    width: 1px;
+                    height: 1px;
+                    visibility: hidden;
+                    pointer-events: none;
+                `;
+                document.body.appendChild(tempElement);
+                
+                // Use scrollIntoView to scroll to it
+                tempElement.scrollIntoView({ block: 'start', inline: 'start', behavior: 'auto' });
+                
+                // Remove the temporary element
+                document.body.removeChild(tempElement);
+                
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // Continue to next method
+            }
+        }
+        
+        // Method 9: Use requestAnimationFrame with direct property assignment (timing-based bypass)
+        if (!scrolled) {
+            try {
+                let rafScrolled = false;
+                requestAnimationFrame(() => {
+                    const targetElement = document.scrollingElement || document.documentElement || document.body;
+                    if (targetElement) {
+                        targetElement.scrollTop = clampedTargetY;
+                        targetElement.scrollLeft = clampedTargetX;
+                    }
+                });
+                
+                // Check after a minimal delay
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                    scrolled = true;
+                }
+            } catch (e) {
+                // All methods failed
+            }
+        }
+        
         return scrolled;
     }
     
