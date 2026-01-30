@@ -13,6 +13,7 @@
     let selectionBox = null;
     let scrollInterval = null;
     let currentScrollDirection = null; // Track scroll direction independently
+    let autoScrollCheckInterval = null; // Continuous check for autoscroll during selection
     
     // Create overlay elements
     function createOverlay() {
@@ -62,6 +63,11 @@
         if (scrollInterval) {
             clearInterval(scrollInterval);
             scrollInterval = null;
+        }
+        
+        if (autoScrollCheckInterval) {
+            clearInterval(autoScrollCheckInterval);
+            autoScrollCheckInterval = null;
         }
         
         // Remove event listeners from document
@@ -138,6 +144,16 @@
         selectionBox.style.width = '0px';
         selectionBox.style.height = '0px';
         selectionBox.style.display = 'block';
+        
+        // Start continuous autoscroll check
+        // This ensures autoscroll works even when mouse stops moving at edge
+        if (!autoScrollCheckInterval) {
+            autoScrollCheckInterval = setInterval(() => {
+                if (isSelecting) {
+                    handleAutoScroll(currentMouseX, currentMouseY);
+                }
+            }, 50); // Check every 50ms
+        }
         
         e.preventDefault();
     }
@@ -436,6 +452,11 @@
             clearInterval(scrollInterval);
             scrollInterval = null;
             currentScrollDirection = null;
+        }
+        
+        if (autoScrollCheckInterval) {
+            clearInterval(autoScrollCheckInterval);
+            autoScrollCheckInterval = null;
         }
         
         isSelecting = false;
