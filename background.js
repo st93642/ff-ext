@@ -114,8 +114,9 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
             for (let col = 0; col < numHorizontalCaptures; col++) {
                 // Calculate scroll position with consideration for overlap
                 // Subtract overlap from non-first tiles to create seamless stitching
-                const scrollX = documentRect.left + (col * viewportWidth) - (col > 0 ? overlap : 0);
-                const scrollY = documentRect.top + (row * viewportHeight) - (row > 0 ? overlap : 0);
+                // Clamp to ensure non-negative scroll positions
+                const scrollX = Math.max(0, documentRect.left + (col * viewportWidth) - (col > 0 ? overlap : 0));
+                const scrollY = Math.max(0, documentRect.top + (row * viewportHeight) - (row > 0 ? overlap : 0));
                 
                 // Scroll to position
                 await browser.scripting.executeScript({

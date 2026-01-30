@@ -176,7 +176,7 @@
         if (!scrolled) {
             try {
                 window.scrollBy({ top: deltaY, behavior: 'auto' });
-                // Check if any scroll happened (allow 2px tolerance for rounding/constraints)
+                // Check if any scroll happened (allow 1px tolerance for rounding/constraints)
                 const newScroll = getCurrentScrollY();
                 if (Math.abs(newScroll - initialScroll) >= 1) {
                     scrolled = true;
@@ -297,8 +297,16 @@
                     return;
                 }
                 
-                // Use robust scroll method
-                performScroll(scrollSpeed);
+                // Use robust scroll method and check if it succeeded
+                const scrolled = performScroll(scrollSpeed);
+                
+                // If scroll failed, the site may be preventing scroll - stop trying
+                if (!scrolled) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    currentScrollDirection = null;
+                    return;
+                }
                 
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();
@@ -322,8 +330,16 @@
                     return;
                 }
                 
-                // Use robust scroll method
-                performScroll(-scrollSpeed);
+                // Use robust scroll method and check if it succeeded
+                const scrolled = performScroll(-scrollSpeed);
+                
+                // If scroll failed, the site may be preventing scroll - stop trying
+                if (!scrolled) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                    currentScrollDirection = null;
+                    return;
+                }
                 
                 // Update selection box to reflect the new scroll position
                 updateSelectionBox();
