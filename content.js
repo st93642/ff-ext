@@ -335,33 +335,36 @@
 
   // Simple single viewport capture
   async function captureSingleView(left, top, width, height) {
-    const dpr = window.devicePixelRatio || 1;
-    
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
     // Scroll to position
     scrollToPos(left, top);
     await sleep(200); // Wait for scroll to complete
 
     const scroll = getScroll();
-    
+
     // Capture visible page
     const pageCanvas = await captureVisiblePage();
-    
+    const scaleX = pageCanvas.width / viewportWidth;
+    const scaleY = pageCanvas.height / viewportHeight;
+
     // Crop to selection
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = width * dpr;
-    finalCanvas.height = height * dpr;
+    finalCanvas.width = Math.round(width * scaleX);
+    finalCanvas.height = Math.round(height * scaleY);
     const ctx = finalCanvas.getContext('2d');
-    
+
     // Calculate offset in case we couldn't scroll exactly to (left, top)
-    const offsetX = (left - scroll.x) * dpr;
-    const offsetY = (top - scroll.y) * dpr;
-    
+    const offsetX = (left - scroll.x) * scaleX;
+    const offsetY = (top - scroll.y) * scaleY;
+
     ctx.drawImage(
       pageCanvas,
-      offsetX, offsetY, width * dpr, height * dpr,
-      0, 0, width * dpr, height * dpr
+      offsetX, offsetY, width * scaleX, height * scaleY,
+      0, 0, width * scaleX, height * scaleY
     );
-    
+
     return finalCanvas;
   }
 
@@ -369,61 +372,68 @@
   async function captureMultipleViews(left, top, width, height) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const dpr = window.devicePixelRatio || 1;
-    
+
     // Calculate overlap (20% to ensure smooth stitching)
     const overlapY = Math.floor(viewportHeight * 0.2);
     const overlapX = Math.floor(viewportWidth * 0.2);
-    
+
     const stepY = viewportHeight - overlapY;
     const stepX = viewportWidth - overlapX;
-    
+
     // Calculate number of rows and columns needed
     const numRows = Math.ceil(height / stepY);
     const numCols = Math.ceil(width / stepX);
-    
-    // Create final canvas in device pixels
-    const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = width * dpr;
-    finalCanvas.height = height * dpr;
-    const ctx = finalCanvas.getContext('2d');
-    
+
+    let finalCanvas = null;
+    let ctx = null;
+    let scaleX = 1;
+    let scaleY = 1;
+
     // Capture each section
     for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numCols; col++) {
         const targetX = left + (col * stepX);
         const targetY = top + (row * stepY);
-        
+
         // Scroll to position
         scrollToPos(targetX, targetY);
         await sleep(250); // Wait for scroll and rendering
-        
+
         const scroll = getScroll();
-        
+
         // Capture this view
         const viewCanvas = await captureVisiblePage();
-        
+
+        if (!finalCanvas) {
+          scaleX = viewCanvas.width / viewportWidth;
+          scaleY = viewCanvas.height / viewportHeight;
+          finalCanvas = document.createElement('canvas');
+          finalCanvas.width = Math.round(width * scaleX);
+          finalCanvas.height = Math.round(height * scaleY);
+          ctx = finalCanvas.getContext('2d');
+        }
+
         // Calculate where our target is within the captured viewport
         const offsetX = (targetX - scroll.x);
         const offsetY = (targetY - scroll.y);
-        
+
         // Calculate how much to take from this view
         const remainingWidth = width - (col * stepX);
         const remainingHeight = height - (row * stepY);
-        
+
         const captureWidth = Math.min(viewportWidth - offsetX, remainingWidth);
         const captureHeight = Math.min(viewportHeight - offsetY, remainingHeight);
-        
+
         if (captureWidth > 0 && captureHeight > 0) {
           ctx.drawImage(
             viewCanvas,
-            offsetX * dpr, offsetY * dpr, captureWidth * dpr, captureHeight * dpr,
-            (col * stepX) * dpr, (row * stepY) * dpr, captureWidth * dpr, captureHeight * dpr
+            offsetX * scaleX, offsetY * scaleY, captureWidth * scaleX, captureHeight * scaleY,
+            (col * stepX) * scaleX, (row * stepY) * scaleY, captureWidth * scaleX, captureHeight * scaleY
           );
         }
       }
     }
-    
+
     return finalCanvas;
   }
 
