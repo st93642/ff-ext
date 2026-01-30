@@ -307,35 +307,20 @@
             }
         }
         
-        // Method 6: Try using stored native descriptors (bypass for aggressive overrides)
-        // Cache the native scroll property setters to use them directly
+        // Method 6: Try using Reflect API for deeper property access (Proxy bypass)
+        // Uses Reflect to access properties which can bypass some Proxy traps
         if (!scrolled) {
             try {
-                // Store references to the native scroll property descriptors
-                // These are on Element.prototype, not HTMLElement.prototype
-                const nativeScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-                const nativeScrollLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
-                
-                // Try multiple target elements in order of preference
-                const possibleTargets = [
-                    document.scrollingElement,
-                    document.documentElement,
-                    document.body
-                ].filter(el => el != null);
-                
-                for (const targetElement of possibleTargets) {
-                    if (nativeScrollTop && nativeScrollTop.set) {
-                        nativeScrollTop.set.call(targetElement, clampedTargetY);
-                    }
-                    if (nativeScrollLeft && nativeScrollLeft.set) {
-                        nativeScrollLeft.set.call(targetElement, clampedTargetX);
-                    }
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                if (targetElement) {
+                    // Use Reflect.set which can bypass certain property setters
+                    const scrollTopSet = Reflect.set(targetElement, 'scrollTop', clampedTargetY);
+                    const scrollLeftSet = Reflect.set(targetElement, 'scrollLeft', clampedTargetX);
                     
                     const newScrollY = getCurrentScrollY();
                     const newScrollX = getCurrentScrollX();
                     if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                         scrolled = true;
-                        break;
                     }
                 }
             } catch (e) {
@@ -343,41 +328,66 @@
             }
         }
         
-        // Method 7: Try direct style.transform for smooth scrolling (CSS-based bypass)
-        // Some sites may block scroll APIs but not CSS transformations
-        if (!scrolled && document.documentElement) {
+        // Method 7: Try Object.defineProperty to temporarily override scroll blocking
+        // Temporarily defines our own getter/setter to bypass restrictions
+        if (!scrolled) {
             try {
-                const scrollableElement = document.scrollingElement || document.documentElement;
-                
-                // Store current transform
-                const originalTransform = scrollableElement.style.transform;
-                const originalTransition = scrollableElement.style.transition;
-                
-                // Calculate the scroll delta
-                const scrollDeltaY = clampedTargetY - initialScrollY;
-                const scrollDeltaX = clampedTargetX - initialScrollX;
-                
-                // Apply transform to simulate scroll
-                scrollableElement.style.transition = 'none';
-                scrollableElement.style.transform = `translate(${-scrollDeltaX}px, ${-scrollDeltaY}px)`;
-                
-                // Check if we can actually set the scroll position after transform
-                // This is a workaround - we'll actually use the standard scroll
-                requestAnimationFrame(() => {
-                    scrollableElement.style.transform = originalTransform;
-                    scrollableElement.style.transition = originalTransition;
+                const targetElement = document.scrollingElement || document.documentElement;
+                if (targetElement) {
+                    // Store original descriptors
+                    const originalTopDescriptor = Object.getOwnPropertyDescriptor(targetElement, 'scrollTop');
+                    const originalLeftDescriptor = Object.getOwnPropertyDescriptor(targetElement, 'scrollLeft');
                     
-                    // Try to set scroll position while transform is active
-                    if (document.scrollingElement) {
-                        document.scrollingElement.scrollTop = clampedTargetY;
-                        document.scrollingElement.scrollLeft = clampedTargetX;
+                    // Define our own properties that can't be blocked
+                    let internalScrollTop = initialScrollY;
+                    let internalScrollLeft = initialScrollX;
+                    
+                    Object.defineProperty(targetElement, 'scrollTop', {
+                        get: () => internalScrollTop,
+                        set: (value) => {
+                            internalScrollTop = value;
+                            // Force browser to scroll by updating the native scroll
+                            const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                            if (nativeDescriptor && nativeDescriptor.set) {
+                                nativeDescriptor.set.call(targetElement, value);
+                            }
+                        },
+                        configurable: true
+                    });
+                    
+                    Object.defineProperty(targetElement, 'scrollLeft', {
+                        get: () => internalScrollLeft,
+                        set: (value) => {
+                            internalScrollLeft = value;
+                            const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                            if (nativeDescriptor && nativeDescriptor.set) {
+                                nativeDescriptor.set.call(targetElement, value);
+                            }
+                        },
+                        configurable: true
+                    });
+                    
+                    // Now try to set the scroll position with our override
+                    targetElement.scrollTop = clampedTargetY;
+                    targetElement.scrollLeft = clampedTargetX;
+                    
+                    // Restore original descriptors
+                    if (originalTopDescriptor) {
+                        Object.defineProperty(targetElement, 'scrollTop', originalTopDescriptor);
+                    } else {
+                        delete targetElement.scrollTop;
                     }
-                });
-                
-                const newScrollY = getCurrentScrollY();
-                const newScrollX = getCurrentScrollX();
-                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
-                    scrolled = true;
+                    if (originalLeftDescriptor) {
+                        Object.defineProperty(targetElement, 'scrollLeft', originalLeftDescriptor);
+                    } else {
+                        delete targetElement.scrollLeft;
+                    }
+                    
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
+                        scrolled = true;
+                    }
                 }
             } catch (e) {
                 // Continue to next method
@@ -419,54 +429,35 @@
             }
         }
         
-        // Method 9: Try location.hash anchor navigation (URL-based bypass)
-        // This uses browser's native anchor scrolling which is harder to block
-        if (!scrolled && (clampedTargetY !== initialScrollY || clampedTargetX !== initialScrollX)) {
-            let tempAnchor = null;
+        // Method 9: Try dispatching a scroll event to trigger natural scrolling
+        // Some frameworks listen to scroll events to update internal state
+        if (!scrolled) {
             try {
-                // Create a temporary anchor element at the target position
-                const anchorId = 'temp-scroll-anchor-' + Date.now();
-                tempAnchor = document.createElement('a');
-                tempAnchor.id = anchorId;
-                tempAnchor.style.cssText = `
-                    position: absolute;
-                    left: ${clampedTargetX}px;
-                    top: ${clampedTargetY}px;
-                    width: 1px;
-                    height: 1px;
-                    visibility: hidden;
-                    pointer-events: none;
-                `;
-                
-                if (document.body) {
-                    document.body.appendChild(tempAnchor);
+                const targetElement = document.scrollingElement || document.documentElement || document.body;
+                if (targetElement) {
+                    // Attempt to force scroll position
+                    const nativeDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                    if (nativeDescriptor && nativeDescriptor.set) {
+                        nativeDescriptor.set.call(targetElement, clampedTargetY);
+                    }
+                    const nativeDescriptorLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                    if (nativeDescriptorLeft && nativeDescriptorLeft.set) {
+                        nativeDescriptorLeft.set.call(targetElement, clampedTargetX);
+                    }
                     
-                    // Use location.hash to trigger native anchor scroll
-                    const oldHash = window.location.hash;
-                    window.location.hash = anchorId;
+                    // Dispatch scroll event to trigger any listeners
+                    const scrollEvent = new Event('scroll', { bubbles: true, cancelable: false });
+                    targetElement.dispatchEvent(scrollEvent);
+                    window.dispatchEvent(scrollEvent);
                     
-                    // Check if scroll happened
                     const newScrollY = getCurrentScrollY();
                     const newScrollX = getCurrentScrollX();
                     if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                         scrolled = true;
                     }
-                    
-                    // Restore original hash
-                    if (oldHash) {
-                        window.location.hash = oldHash;
-                    } else {
-                        // Remove hash without triggering scroll
-                        history.replaceState('', document.title, window.location.pathname + window.location.search);
-                    }
                 }
             } catch (e) {
-                // All methods failed
-            } finally {
-                // Always clean up the temporary anchor
-                if (tempAnchor && tempAnchor.parentNode) {
-                    tempAnchor.parentNode.removeChild(tempAnchor);
-                }
+                // Method failed
             }
         }
         
