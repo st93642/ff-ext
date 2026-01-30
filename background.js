@@ -34,19 +34,54 @@ browser.action.onClicked.addListener(async (tab) => {
 // Handle messages from content script
 browser.runtime.onMessage.addListener(async (message, sender) => {
     if (message.action === 'captureSelection') {
-        await captureAndCropScreenshot(sender.tab.id, message.rect);
+        await captureAndCropScreenshot(sender.tab.id, message.rect, message.documentRect, message.currentScrollY);
     }
     return true; // Keep message channel open for async operations
 });
 
 // Capture and crop screenshot
-async function captureAndCropScreenshot(tabId, rect) {
-    console.log('Capturing selection:', rect);
+async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrollY) {
+    console.log('Capturing selection:', rect, 'Document rect:', documentRect);
     
     try {
         // Validate selection dimensions
         if (!rect || rect.width <= 0 || rect.height <= 0) {
             throw new Error('Invalid selection dimensions');
+        }
+        
+        // Determine if we need to scroll to capture the selection
+        // If the selection extends beyond the current viewport, we need to position it optimally
+        const viewportHeight = await browser.scripting.executeScript({
+            target: { tabId: tabId },
+            func: () => window.innerHeight
+        }).then(results => results[0].result);
+        
+        let needsScroll = false;
+        let targetScrollY = originalScrollY;
+        
+        // Check if selection is fully visible in current viewport
+        if (rect.top < 0 || rect.top + rect.height > viewportHeight) {
+            needsScroll = true;
+            // Scroll to center the selection vertically
+            targetScrollY = documentRect.top - (viewportHeight - documentRect.height) / 2;
+            targetScrollY = Math.max(0, targetScrollY); // Don't scroll above page
+        }
+        
+        // If we need to scroll, do it before capturing
+        if (needsScroll) {
+            await browser.scripting.executeScript({
+                target: { tabId: tabId },
+                func: (scrollY) => {
+                    window.scrollTo(0, scrollY);
+                },
+                args: [targetScrollY]
+            });
+            
+            // Wait a bit for the scroll to complete and page to render
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Recalculate viewport-relative coordinates based on new scroll position
+            rect.top = documentRect.top - targetScrollY;
         }
         
         // Capture the entire visible tab
@@ -133,6 +168,21 @@ async function captureAndCropScreenshot(tabId, rect) {
         console.log('Script execution result:', results);
         
         if (results && results[0] && results[0].result && results[0].result.success) {
+            // Restore original scroll position if we changed it
+            if (needsScroll) {
+                try {
+                    await browser.scripting.executeScript({
+                        target: { tabId: tabId },
+                        func: (scrollY) => {
+                            window.scrollTo(0, scrollY);
+                        },
+                        args: [originalScrollY]
+                    });
+                } catch (e) {
+                    console.log('Could not restore scroll position:', e);
+                }
+            }
+            
             // Play capture sound
             try {
                 await browser.scripting.executeScript({
