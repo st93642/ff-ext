@@ -17,10 +17,86 @@
   let autoScrollInterval = null;
   let autoScrollVelocityX = 0;
   let autoScrollVelocityY = 0;
+  let activeScroller = window;
 
   const EDGE_THRESHOLD = 60; // px from edge to trigger auto-scroll
   const SCROLL_SPEED = 18; // px per frame
   const MIN_SELECTION_SIZE = 10; // minimum 10x10px
+
+  // Utility: Find the best scrollable element on the page
+  function findBestScroller() {
+    if (document.scrollingElement && (document.scrollingElement.scrollHeight > window.innerHeight + 10 || document.scrollingElement.scrollWidth > window.innerWidth + 10)) {
+      return window;
+    }
+
+    const elements = document.querySelectorAll('div, main, section, article');
+    let best = window;
+    let maxArea = 0;
+
+    for (const el of elements) {
+      const isScrollable = el.scrollHeight > el.clientHeight + 10 || el.scrollWidth > el.clientWidth + 10;
+      if (isScrollable) {
+        const style = window.getComputedStyle(el);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+            style.overflowX === 'auto' || style.overflowX === 'scroll') {
+          const rect = el.getBoundingClientRect();
+          const area = rect.width * rect.height;
+          if (area > maxArea) {
+            maxArea = area;
+            best = el;
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  // Utility: Get current scroll position
+  function getScroll() {
+    if (activeScroller === window) {
+      return {
+        x: window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
+        y: window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+      };
+    } else {
+      const rect = activeScroller.getBoundingClientRect();
+      return {
+        x: activeScroller.scrollLeft - rect.left,
+        y: activeScroller.scrollTop - rect.top
+      };
+    }
+  }
+
+  // Utility: Scroll to position
+  function scrollToPos(x, y) {
+    if (activeScroller === window) {
+      window.scrollTo(x, y);
+      // Fallback for some sites
+      const scroll = getScroll();
+      if (Math.abs(scroll.x - x) > 1 || Math.abs(scroll.y - y) > 1) {
+        if (document.scrollingElement) document.scrollingElement.scrollTo(x, y);
+      }
+    } else {
+      const rect = activeScroller.getBoundingClientRect();
+      activeScroller.scrollLeft = x + rect.left;
+      activeScroller.scrollTop = y + rect.top;
+    }
+  }
+
+  // Utility: Scroll by amount
+  function scrollByAmount(vx, vy) {
+    if (activeScroller === window) {
+      const oldScroll = getScroll();
+      window.scrollBy(vx, vy);
+      const newScroll = getScroll();
+      if (Math.abs(newScroll.x - oldScroll.x) < 1 && Math.abs(newScroll.y - oldScroll.y) < 1) {
+        if (document.scrollingElement) document.scrollingElement.scrollBy(vx, vy);
+      }
+    } else {
+      activeScroller.scrollLeft += vx;
+      activeScroller.scrollTop += vy;
+    }
+  }
 
   // Create selection UI
   function createSelectionUI() {
@@ -74,7 +150,7 @@
 
     autoScrollInterval = setInterval(() => {
       if (autoScrollVelocityX !== 0 || autoScrollVelocityY !== 0) {
-        window.scrollBy(autoScrollVelocityX, autoScrollVelocityY);
+        scrollByAmount(autoScrollVelocityX, autoScrollVelocityY);
       }
     }, 16); // ~60fps
   }
@@ -115,9 +191,11 @@
   function handleMouseDown(e) {
     if (e.button !== 0) return; // Only left click
 
+    activeScroller = findBestScroller();
     isSelecting = true;
-    startX = e.clientX + window.scrollX;
-    startY = e.clientY + window.scrollY;
+    const scroll = getScroll();
+    startX = e.clientX + scroll.x;
+    startY = e.clientY + scroll.y;
 
     selectionBox.style.display = 'block';
     startAutoScroll();
@@ -130,8 +208,9 @@
   function handleMouseMove(e) {
     if (!isSelecting) return;
 
-    const currentX = e.clientX + window.scrollX;
-    const currentY = e.clientY + window.scrollY;
+    const scroll = getScroll();
+    const currentX = e.clientX + scroll.x;
+    const currentY = e.clientY + scroll.y;
 
     const left = Math.min(startX, currentX);
     const top = Math.min(startY, currentY);
@@ -139,8 +218,8 @@
     const height = Math.abs(currentY - startY);
 
     // Update selection box position (fixed positioning relative to viewport)
-    selectionBox.style.left = (left - window.scrollX) + 'px';
-    selectionBox.style.top = (top - window.scrollY) + 'px';
+    selectionBox.style.left = (left - scroll.x) + 'px';
+    selectionBox.style.top = (top - scroll.y) + 'px';
     selectionBox.style.width = width + 'px';
     selectionBox.style.height = height + 'px';
 
@@ -158,8 +237,9 @@
     stopAutoScroll();
     isSelecting = false;
 
-    const endX = e.clientX + window.scrollX;
-    const endY = e.clientY + window.scrollY;
+    const scroll = getScroll();
+    const endX = e.clientX + scroll.x;
+    const endY = e.clientY + scroll.y;
 
     const left = Math.min(startX, endX);
     const top = Math.min(startY, endY);
@@ -206,8 +286,7 @@
     showNotification('Capturing screenshot...', false, true);
 
     // Store original scroll position
-    const originalScrollX = window.scrollX;
-    const originalScrollY = window.scrollY;
+    const originalScroll = getScroll();
 
     try {
       const canvas = await captureWithStitching(left, top, width, height);
@@ -233,7 +312,7 @@
       });
     } finally {
       // Restore original scroll position
-      window.scrollTo(originalScrollX, originalScrollY);
+      scrollToPos(originalScroll.x, originalScroll.y);
     }
   }
 
@@ -256,23 +335,31 @@
 
   // Simple single viewport capture
   async function captureSingleView(left, top, width, height) {
+    const dpr = window.devicePixelRatio || 1;
+    
     // Scroll to position
-    window.scrollTo(left, top);
-    await sleep(100); // Wait for scroll to complete
+    scrollToPos(left, top);
+    await sleep(200); // Wait for scroll to complete
 
+    const scroll = getScroll();
+    
     // Capture visible page
     const pageCanvas = await captureVisiblePage();
     
     // Crop to selection
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = width;
-    finalCanvas.height = height;
+    finalCanvas.width = width * dpr;
+    finalCanvas.height = height * dpr;
     const ctx = finalCanvas.getContext('2d');
+    
+    // Calculate offset in case we couldn't scroll exactly to (left, top)
+    const offsetX = (left - scroll.x) * dpr;
+    const offsetY = (top - scroll.y) * dpr;
     
     ctx.drawImage(
       pageCanvas,
-      0, 0, width, height,
-      0, 0, width, height
+      offsetX, offsetY, width * dpr, height * dpr,
+      0, 0, width * dpr, height * dpr
     );
     
     return finalCanvas;
@@ -282,6 +369,7 @@
   async function captureMultipleViews(left, top, width, height) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const dpr = window.devicePixelRatio || 1;
     
     // Calculate overlap (20% to ensure smooth stitching)
     const overlapY = Math.floor(viewportHeight * 0.2);
@@ -294,40 +382,45 @@
     const numRows = Math.ceil(height / stepY);
     const numCols = Math.ceil(width / stepX);
     
-    // Create final canvas
+    // Create final canvas in device pixels
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = width;
-    finalCanvas.height = height;
+    finalCanvas.width = width * dpr;
+    finalCanvas.height = height * dpr;
     const ctx = finalCanvas.getContext('2d');
     
     // Capture each section
     for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numCols; col++) {
-        const scrollX = left + (col * stepX);
-        const scrollY = top + (row * stepY);
+        const targetX = left + (col * stepX);
+        const targetY = top + (row * stepY);
         
         // Scroll to position
-        window.scrollTo(scrollX, scrollY);
-        await sleep(150); // Wait for scroll and rendering
+        scrollToPos(targetX, targetY);
+        await sleep(250); // Wait for scroll and rendering
+        
+        const scroll = getScroll();
         
         // Capture this view
         const viewCanvas = await captureVisiblePage();
         
-        // Calculate source and destination rectangles
-        const srcX = 0;
-        const srcY = 0;
-        const srcWidth = Math.min(viewportWidth, width - (col * stepX));
-        const srcHeight = Math.min(viewportHeight, height - (row * stepY));
+        // Calculate where our target is within the captured viewport
+        const offsetX = (targetX - scroll.x);
+        const offsetY = (targetY - scroll.y);
         
-        const destX = col * stepX;
-        const destY = row * stepY;
+        // Calculate how much to take from this view
+        const remainingWidth = width - (col * stepX);
+        const remainingHeight = height - (row * stepY);
         
-        // Draw this section onto final canvas
-        ctx.drawImage(
-          viewCanvas,
-          srcX, srcY, srcWidth, srcHeight,
-          destX, destY, srcWidth, srcHeight
-        );
+        const captureWidth = Math.min(viewportWidth - offsetX, remainingWidth);
+        const captureHeight = Math.min(viewportHeight - offsetY, remainingHeight);
+        
+        if (captureWidth > 0 && captureHeight > 0) {
+          ctx.drawImage(
+            viewCanvas,
+            offsetX * dpr, offsetY * dpr, captureWidth * dpr, captureHeight * dpr,
+            (col * stepX) * dpr, (row * stepY) * dpr, captureWidth * dpr, captureHeight * dpr
+          );
+        }
       }
     }
     
@@ -340,6 +433,10 @@
     const dataUrl = await browser.runtime.sendMessage({
       action: "captureVisibleTab"
     });
+    
+    if (!dataUrl) {
+      throw new Error('Failed to capture tab content');
+    }
     
     // Convert data URL to canvas
     const canvas = document.createElement('canvas');
@@ -398,6 +495,7 @@
 
     // Add animation
     const style = document.createElement('style');
+    style.id = '__screenshot_notification_style';
     style.textContent = `
       @keyframes slideIn {
         from {
@@ -409,15 +507,29 @@
           opacity: 1;
         }
       }
+      @keyframes slideOut {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+      }
     `;
-    document.head.appendChild(style);
+    if (!document.getElementById('__screenshot_notification_style')) {
+        document.head.appendChild(style);
+    }
 
     document.body.appendChild(notification);
 
     if (!isPersistent) {
       setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
+        setTimeout(() => {
+            if (notification.parentElement) notification.remove();
+        }, 300);
       }, 3000);
     }
   }
