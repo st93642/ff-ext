@@ -44,27 +44,39 @@ Implemented a robust `performScroll()` function that tries **5 different scroll 
 
 ```javascript
 function performScroll(deltaY) {
-    // Calculate target position
-    const currentScroll = window.scrollY || window.pageYOffset || 
-                         document.documentElement.scrollTop || 
-                         document.body.scrollTop || 0;
-    const targetScroll = currentScroll + deltaY;
+    // Helper to get current scroll position consistently
+    function getCurrentScroll() {
+        return window.scrollY || window.pageYOffset || 
+               document.documentElement.scrollTop || 
+               document.body.scrollTop || 0;
+    }
     
-    // Try each method (errors are silently caught)
-    try { window.scrollBy(0, deltaY); } catch (e) {}
-    try { window.scroll(0, targetScroll); } catch (e) {}
-    try { if (document.scrollingElement) document.scrollingElement.scrollTop = targetScroll; } catch (e) {}
-    try { document.documentElement.scrollTop = targetScroll; } catch (e) {}
-    try { document.body.scrollTop = targetScroll; } catch (e) {}
+    const initialScroll = getCurrentScroll();
+    const targetScroll = initialScroll + deltaY;
+    
+    // Try each method, return early if one succeeds
+    try {
+        window.scrollBy(0, deltaY);
+        if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+    } catch (e) {}
+    
+    try {
+        window.scroll(0, targetScroll);
+        if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+    } catch (e) {}
+    
+    // ... continue with methods 3-5 until one succeeds
 }
 ```
 
+Each method is attempted in order. If a method successfully scrolls the page, the function returns early. This prevents redundant operations and improves performance.
+
 ## Key Benefits
 
-1. **Website Independent**: Works on virtually all websites regardless of their scroll implementation
+1. **Significantly Improves Website Compatibility**: Works on the vast majority of websites, including those with custom scroll implementations
 2. **No Breaking Changes**: Backward compatible with sites where autoscroll already worked
-3. **Graceful Degradation**: If one method fails, it tries the next one
-4. **Silent Failures**: Doesn't throw errors or break functionality
+3. **True Fallback Logic**: Returns early when a method succeeds, preventing redundant operations
+4. **Performance Optimized**: Early return avoids unnecessary DOM manipulation
 5. **Comprehensive Coverage**: Covers modern standards, legacy methods, and edge cases
 
 ## Testing
@@ -90,11 +102,14 @@ function performScroll(deltaY) {
 
 ## Why This Fixes the Issue
 
-The multi-method approach ensures that **at least one** scroll method will work on any website:
+The multi-method approach with early return ensures **high probability of success** on most websites:
 - If the site blocks `window.scrollBy`, we try `window.scroll`
 - If both are blocked, we directly manipulate `scrollTop` properties
 - Direct DOM manipulation (Methods 3-5) bypasses JavaScript-level restrictions
-- This is why it now works on sites like TryHackMe that might have custom scroll implementations
+- Early return prevents redundant operations once scroll succeeds
+- This approach should work on sites like TryHackMe that might have custom scroll implementations
+
+**Note**: While this significantly improves compatibility, there may be rare edge cases (unusual DOM configurations, iframe contexts, or multiple interfering extensions) where scrolling could still be restricted. However, this implementation covers the vast majority of real-world scenarios.
 
 ## Technical Details
 

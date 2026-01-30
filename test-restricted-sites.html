@@ -160,8 +160,33 @@
     </div>
 
     <script>
-        // Simulate a "restricted" website by blocking some scroll events
+        // Simulate a "restricted" website by actually blocking scroll methods
         // This mimics what some websites (like THM) might do
+        
+        // Save original methods
+        const originalScrollBy = window.scrollBy;
+        const originalScroll = window.scroll;
+        
+        // Block the first two methods to force fallback to direct DOM manipulation
+        // This simulates sites that override these methods
+        let scrollByBlocked = true;
+        let scrollBlocked = true;
+        
+        window.scrollBy = function(x, y) {
+            if (scrollByBlocked) {
+                console.log('🔒 window.scrollBy() blocked - extension should fallback');
+                return; // Blocked - don't actually scroll
+            }
+            return originalScrollBy.call(this, x, y);
+        };
+        
+        window.scroll = function(x, y) {
+            if (scrollBlocked) {
+                console.log('🔒 window.scroll() blocked - extension should fallback');
+                return; // Blocked - don't actually scroll
+            }
+            return originalScroll.call(this, x, y);
+        };
         
         // Block wheel events (common on custom scroll implementations)
         document.addEventListener('wheel', function(e) {
@@ -169,14 +194,13 @@
             e.preventDefault();
         }, { passive: false });
         
-        // Block scroll events from being prevented by page scripts
-        document.addEventListener('scroll', function(e) {
-            // Some sites try to control scroll behavior
-        }, { passive: false });
-        
         console.log('🔒 Restricted site simulation active');
+        console.log('   - window.scrollBy() is being blocked');
+        console.log('   - window.scroll() is being blocked');
         console.log('   - Wheel events are being intercepted');
-        console.log('   - Testing if extension can still autoscroll...');
+        console.log('   - Extension must use direct DOM manipulation (methods 3-5)');
+        console.log('');
+        console.log('✨ Try the extension autoscroll - it should still work!');
     </script>
 </body>
 </html>

@@ -132,46 +132,57 @@
     }
     
     // Robust scroll function that works on all websites
-    // Tries multiple methods to bypass website restrictions
+    // Tries multiple methods with early return on success
     function performScroll(deltaY) {
-        const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-        const targetScroll = currentScroll + deltaY;
+        // Helper to get current scroll position consistently
+        function getCurrentScroll() {
+            return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        }
+        
+        const initialScroll = getCurrentScroll();
+        const targetScroll = initialScroll + deltaY;
         
         // Method 1: Try window.scrollBy() (standard method)
         try {
             window.scrollBy(0, deltaY);
+            // Check if it worked (allow 1px tolerance for rounding)
+            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
         } catch (e) {
-            // Silently continue to next method
+            // Continue to next method
         }
         
         // Method 2: Try window.scroll() with absolute position
         try {
             window.scroll(0, targetScroll);
+            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
         } catch (e) {
-            // Silently continue to next method
+            // Continue to next method
         }
         
         // Method 3: Direct manipulation of scrollTop (bypasses most restrictions)
         try {
             if (document.scrollingElement) {
                 document.scrollingElement.scrollTop = targetScroll;
+                if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
             }
         } catch (e) {
-            // Silently continue to next method
+            // Continue to next method
         }
         
         // Method 4: Try document.documentElement.scrollTop
         try {
             document.documentElement.scrollTop = targetScroll;
+            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
         } catch (e) {
-            // Silently continue to next method
+            // Continue to next method
         }
         
         // Method 5: Try document.body.scrollTop (for older browsers/websites)
         try {
             document.body.scrollTop = targetScroll;
+            // No check needed - last attempt
         } catch (e) {
-            // All methods failed, but we tried our best
+            // All methods failed - scroll may be restricted on this site
         }
     }
     
