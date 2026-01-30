@@ -153,40 +153,46 @@
         // Update selection box using helper function
         updateSelectionBox();
         
-        // Auto-scroll logic
-        handleAutoScroll(currentMouseY);
+        // Auto-scroll logic - now handles both X and Y
+        handleAutoScroll(currentMouseX, currentMouseY);
         
         e.preventDefault();
     }
     
     // Robust scroll function that works on all websites
     // Tries multiple methods including bypasses for restricted sites
-    function performScroll(deltaY) {
+    function performScroll(deltaX, deltaY) {
         // Use the helper function for consistency
-        const initialScroll = getCurrentScrollY();
-        const targetScroll = Math.max(0, initialScroll + deltaY); // Ensure non-negative
+        const initialScrollY = getCurrentScrollY();
+        const initialScrollX = getCurrentScrollX();
+        const targetScrollY = Math.max(0, initialScrollY + deltaY); // Ensure non-negative
+        const targetScrollX = Math.max(0, initialScrollX + deltaX); // Ensure non-negative
         
         // Clamp target to document limits
-        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-        const clampedTarget = Math.min(maxScroll, targetScroll);
+        const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const maxScrollX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+        const clampedTargetY = Math.min(maxScrollY, targetScrollY);
+        const clampedTargetX = Math.min(maxScrollX, targetScrollX);
         
         let scrolled = false;
         
         // Method 1: Try window.scrollBy() with behavior auto (standard method)
         if (!scrolled) {
             try {
-                window.scrollBy({ top: deltaY, behavior: 'auto' });
+                window.scrollBy({ left: deltaX, top: deltaY, behavior: 'auto' });
                 // Check if any scroll happened (allow 1px tolerance for rounding/constraints)
-                const newScroll = getCurrentScrollY();
-                if (Math.abs(newScroll - initialScroll) >= 1) {
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                     scrolled = true;
                 }
             } catch (e) {
                 // Try without options object (older browsers)
                 try {
-                    window.scrollBy(0, deltaY);
-                    const newScroll = getCurrentScrollY();
-                    if (Math.abs(newScroll - initialScroll) >= 1) {
+                    window.scrollBy(deltaX, deltaY);
+                    const newScrollY = getCurrentScrollY();
+                    const newScrollX = getCurrentScrollX();
+                    if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                         scrolled = true;
                     }
                 } catch (e2) {
@@ -198,9 +204,10 @@
         // Method 2: Try window.scroll() with absolute position
         if (!scrolled) {
             try {
-                window.scroll(0, clampedTarget);
-                const newScroll = getCurrentScrollY();
-                if (Math.abs(newScroll - initialScroll) >= 1) {
+                window.scroll(clampedTargetX, clampedTargetY);
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                     scrolled = true;
                 }
             } catch (e) {
@@ -208,18 +215,25 @@
             }
         }
         
-        // Method 3: Direct manipulation of scrollTop on scrollingElement (bypasses most restrictions)
+        // Method 3: Direct manipulation of scrollTop/scrollLeft on scrollingElement (bypasses most restrictions)
         if (!scrolled && document.scrollingElement) {
             try {
-                // Use Object.defineProperty bypass for sites that override scrollTop
-                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-                if (descriptor && descriptor.set) {
-                    descriptor.set.call(document.scrollingElement, clampedTarget);
+                // Use Object.defineProperty bypass for sites that override scrollTop/scrollLeft
+                const descriptorTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                const descriptorLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                if (descriptorTop && descriptorTop.set) {
+                    descriptorTop.set.call(document.scrollingElement, clampedTargetY);
                 } else {
-                    document.scrollingElement.scrollTop = clampedTarget;
+                    document.scrollingElement.scrollTop = clampedTargetY;
                 }
-                const newScroll = getCurrentScrollY();
-                if (Math.abs(newScroll - initialScroll) >= 1) {
+                if (descriptorLeft && descriptorLeft.set) {
+                    descriptorLeft.set.call(document.scrollingElement, clampedTargetX);
+                } else {
+                    document.scrollingElement.scrollLeft = clampedTargetX;
+                }
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                     scrolled = true;
                 }
             } catch (e) {
@@ -227,17 +241,24 @@
             }
         }
         
-        // Method 4: Try document.documentElement.scrollTop with descriptor bypass
+        // Method 4: Try document.documentElement.scrollTop/scrollLeft with descriptor bypass
         if (!scrolled) {
             try {
-                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-                if (descriptor && descriptor.set) {
-                    descriptor.set.call(document.documentElement, clampedTarget);
+                const descriptorTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                const descriptorLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                if (descriptorTop && descriptorTop.set) {
+                    descriptorTop.set.call(document.documentElement, clampedTargetY);
                 } else {
-                    document.documentElement.scrollTop = clampedTarget;
+                    document.documentElement.scrollTop = clampedTargetY;
                 }
-                const newScroll = getCurrentScrollY();
-                if (Math.abs(newScroll - initialScroll) >= 1) {
+                if (descriptorLeft && descriptorLeft.set) {
+                    descriptorLeft.set.call(document.documentElement, clampedTargetX);
+                } else {
+                    document.documentElement.scrollLeft = clampedTargetX;
+                }
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                     scrolled = true;
                 }
             } catch (e) {
@@ -245,17 +266,24 @@
             }
         }
         
-        // Method 5: Try document.body.scrollTop with descriptor bypass
+        // Method 5: Try document.body.scrollTop/scrollLeft with descriptor bypass
         if (!scrolled && document.body) {
             try {
-                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-                if (descriptor && descriptor.set) {
-                    descriptor.set.call(document.body, clampedTarget);
+                const descriptorTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                const descriptorLeft = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+                if (descriptorTop && descriptorTop.set) {
+                    descriptorTop.set.call(document.body, clampedTargetY);
                 } else {
-                    document.body.scrollTop = clampedTarget;
+                    document.body.scrollTop = clampedTargetY;
                 }
-                const newScroll = getCurrentScrollY();
-                if (Math.abs(newScroll - initialScroll) >= 1) {
+                if (descriptorLeft && descriptorLeft.set) {
+                    descriptorLeft.set.call(document.body, clampedTargetX);
+                } else {
+                    document.body.scrollLeft = clampedTargetX;
+                }
+                const newScrollY = getCurrentScrollY();
+                const newScrollX = getCurrentScrollX();
+                if (Math.abs(newScrollY - initialScrollY) >= 1 || Math.abs(newScrollX - initialScrollX) >= 1) {
                     scrolled = true;
                 }
             } catch (e) {
@@ -267,90 +295,136 @@
     }
     
     // Handle auto-scroll when mouse is near viewport edges
-    function handleAutoScroll(mouseY) {
+    function handleAutoScroll(mouseX, mouseY) {
         const scrollThreshold = 50; // pixels from edge to trigger scroll
         const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
         
-        // Check if mouse is near bottom edge and can scroll down
+        // Determine scroll direction based on mouse position
+        let shouldScrollDown = false;
+        let shouldScrollUp = false;
+        let shouldScrollRight = false;
+        let shouldScrollLeft = false;
+        
+        // Check vertical scrolling
         const canScrollDown = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight;
         const isNearBottom = mouseY > viewportHeight - scrollThreshold;
-        
-        // Check if mouse is near top edge and can scroll up
         const canScrollUp = window.scrollY > 0;
         const isNearTop = mouseY < scrollThreshold;
         
-        // If we're in a scroll zone and not already scrolling in that direction
-        if (isNearBottom && canScrollDown && currentScrollDirection !== 'down') {
+        if (isNearBottom && canScrollDown) {
+            shouldScrollDown = true;
+        } else if (isNearTop && canScrollUp) {
+            shouldScrollUp = true;
+        }
+        
+        // Check horizontal scrolling
+        const canScrollRight = (window.scrollX + window.innerWidth) < document.documentElement.scrollWidth;
+        const isNearRight = mouseX > viewportWidth - scrollThreshold;
+        const canScrollLeft = window.scrollX > 0;
+        const isNearLeft = mouseX < scrollThreshold;
+        
+        if (isNearRight && canScrollRight) {
+            shouldScrollRight = true;
+        } else if (isNearLeft && canScrollLeft) {
+            shouldScrollLeft = true;
+        }
+        
+        // Determine the new scroll direction
+        let newDirection = null;
+        if (shouldScrollDown && shouldScrollRight) {
+            newDirection = 'down-right';
+        } else if (shouldScrollDown && shouldScrollLeft) {
+            newDirection = 'down-left';
+        } else if (shouldScrollUp && shouldScrollRight) {
+            newDirection = 'up-right';
+        } else if (shouldScrollUp && shouldScrollLeft) {
+            newDirection = 'up-left';
+        } else if (shouldScrollDown) {
+            newDirection = 'down';
+        } else if (shouldScrollUp) {
+            newDirection = 'up';
+        } else if (shouldScrollRight) {
+            newDirection = 'right';
+        } else if (shouldScrollLeft) {
+            newDirection = 'left';
+        }
+        
+        // If direction changed or we need to start scrolling
+        if (newDirection !== currentScrollDirection) {
             // Clear any existing scroll interval
             if (scrollInterval) {
                 clearInterval(scrollInterval);
                 scrollInterval = null;
             }
             
-            scrollInterval = setInterval(() => {
-                // Check if we can still scroll
-                if ((window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight) {
-                    clearInterval(scrollInterval);
-                    scrollInterval = null;
-                    currentScrollDirection = null;
-                    return;
-                }
+            // If we have a new direction, start scrolling
+            if (newDirection) {
+                // Capture direction in the closure to avoid stale reference
+                const scrollDirection = newDirection;
                 
-                // Use robust scroll method and check if it succeeded
-                const scrolled = performScroll(scrollSpeed);
-                
-                // If scroll failed, the site may be preventing scroll - stop trying
-                if (!scrolled) {
-                    clearInterval(scrollInterval);
-                    scrollInterval = null;
-                    currentScrollDirection = null;
-                    return;
-                }
-                
-                // Update selection box to reflect the new scroll position
-                updateSelectionBox();
-            }, 16); // ~60fps
-            currentScrollDirection = 'down';
-        }
-        // Check if mouse is near top edge and can scroll up
-        else if (isNearTop && canScrollUp && currentScrollDirection !== 'up') {
-            // Clear any existing scroll interval
-            if (scrollInterval) {
-                clearInterval(scrollInterval);
-                scrollInterval = null;
+                scrollInterval = setInterval(() => {
+                    // Calculate scroll deltas based on direction
+                    let deltaX = 0;
+                    let deltaY = 0;
+                    
+                    if (scrollDirection.includes('down')) {
+                        deltaY = scrollSpeed;
+                    } else if (scrollDirection.includes('up')) {
+                        deltaY = -scrollSpeed;
+                    }
+                    
+                    if (scrollDirection.includes('right')) {
+                        deltaX = scrollSpeed;
+                    } else if (scrollDirection.includes('left')) {
+                        deltaX = -scrollSpeed;
+                    }
+                    
+                    // Check if we can still scroll in the current direction
+                    const currentScrollY = getCurrentScrollY();
+                    const currentScrollX = getCurrentScrollX();
+                    const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                    const maxScrollX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
+                    
+                    // Check if we've reached limits for active scroll directions
+                    const verticalBlocked = (deltaY > 0 && currentScrollY >= maxScrollY) || (deltaY < 0 && currentScrollY <= 0);
+                    const horizontalBlocked = (deltaX > 0 && currentScrollX >= maxScrollX) || (deltaX < 0 && currentScrollX <= 0);
+                    
+                    // For diagonal scrolling, allow continuation if at least one direction can still scroll
+                    // For single-direction scrolling, stop when that direction is blocked
+                    const shouldStop = (deltaX !== 0 && deltaY !== 0) 
+                        ? (verticalBlocked && horizontalBlocked)  // Diagonal: stop only if both blocked
+                        : (verticalBlocked || horizontalBlocked); // Single: stop if the active direction is blocked
+                    
+                    if (shouldStop) {
+                        clearInterval(scrollInterval);
+                        scrollInterval = null;
+                        currentScrollDirection = null;
+                        return;
+                    }
+                    
+                    // Zero out blocked directions for diagonal scrolling
+                    if (verticalBlocked) deltaY = 0;
+                    if (horizontalBlocked) deltaX = 0;
+                    
+                    // Use robust scroll method and check if it succeeded
+                    const scrolled = performScroll(deltaX, deltaY);
+                    
+                    // If scroll failed, the site may be preventing scroll - stop trying
+                    if (!scrolled) {
+                        clearInterval(scrollInterval);
+                        scrollInterval = null;
+                        currentScrollDirection = null;
+                        return;
+                    }
+                    
+                    // Update selection box to reflect the new scroll position
+                    updateSelectionBox();
+                }, 16); // ~60fps
             }
             
-            scrollInterval = setInterval(() => {
-                // Check if we can still scroll
-                if (window.scrollY <= 0) {
-                    clearInterval(scrollInterval);
-                    scrollInterval = null;
-                    currentScrollDirection = null;
-                    return;
-                }
-                
-                // Use robust scroll method and check if it succeeded
-                const scrolled = performScroll(-scrollSpeed);
-                
-                // If scroll failed, the site may be preventing scroll - stop trying
-                if (!scrolled) {
-                    clearInterval(scrollInterval);
-                    scrollInterval = null;
-                    currentScrollDirection = null;
-                    return;
-                }
-                
-                // Update selection box to reflect the new scroll position
-                updateSelectionBox();
-            }, 16); // ~60fps
-            currentScrollDirection = 'up';
-        }
-        // If we're not in a scroll zone, clear the interval
-        else if (!isNearBottom && !isNearTop && scrollInterval) {
-            clearInterval(scrollInterval);
-            scrollInterval = null;
-            currentScrollDirection = null;
+            currentScrollDirection = newDirection;
         }
     }
     
