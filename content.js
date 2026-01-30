@@ -169,8 +169,8 @@
         // Update selection box using helper function
         updateSelectionBox();
         
-        // Auto-scroll logic - now handles both X and Y
-        handleAutoScroll(currentMouseX, currentMouseY);
+        // Note: Auto-scroll is handled by autoScrollCheckInterval for continuous checking
+        // No need to call handleAutoScroll here as it would be redundant
         
         e.preventDefault();
     }
