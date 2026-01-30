@@ -34,19 +34,241 @@ browser.action.onClicked.addListener(async (tab) => {
 // Handle messages from content script
 browser.runtime.onMessage.addListener(async (message, sender) => {
     if (message.action === 'captureSelection') {
-        await captureAndCropScreenshot(sender.tab.id, message.rect);
+        await captureAndCropScreenshot(sender.tab.id, message.rect, message.documentRect, message.currentScrollY, message.currentScrollX);
     }
     return true; // Keep message channel open for async operations
 });
 
 // Capture and crop screenshot
-async function captureAndCropScreenshot(tabId, rect) {
-    console.log('Capturing selection:', rect);
+async function captureAndCropScreenshot(tabId, rect, documentRect, originalScrollY, originalScrollX) {
+    console.log('Capturing selection:', rect, 'Document rect:', documentRect);
     
     try {
         // Validate selection dimensions
         if (!rect || rect.width <= 0 || rect.height <= 0) {
             throw new Error('Invalid selection dimensions');
+        }
+        
+        // Get viewport dimensions
+        const viewportDimensions = await browser.scripting.executeScript({
+            target: { tabId: tabId },
+            func: () => ({ width: window.innerWidth, height: window.innerHeight })
+        }).then(results => results[0].result);
+        
+        // Check if selection fits in viewport
+        const fitsInViewport = (
+            rect.top >= 0 && 
+            rect.left >= 0 &&
+            rect.top + rect.height <= viewportDimensions.height &&
+            rect.left + rect.width <= viewportDimensions.width
+        );
+        
+        if (fitsInViewport) {
+            // Simple case: selection fits in viewport, use fast single capture
+            console.log('Selection fits in viewport, using single capture...');
+            await captureWithScrollFallback(tabId, rect, documentRect, originalScrollY, originalScrollX);
+        } else {
+            // Complex case: selection spans beyond viewport, use stitching approach
+            console.log('Selection spans beyond viewport, using multi-capture stitch...');
+            await captureWithStitching(tabId, rect, documentRect, originalScrollY, originalScrollX, viewportDimensions);
+        }
+        
+    } catch (error) {
+        console.error('Error during capture:', error);
+        await browser.notifications.create({
+            type: 'basic',
+            iconUrl: browser.runtime.getURL('icons/icon-48.png'),
+            title: 'Capture Failed',
+            message: error.message || 'Failed to capture screenshot'
+        });
+    }
+}
+
+// Multi-capture stitching approach for large selections
+async function captureWithStitching(tabId, rect, documentRect, originalScrollY, originalScrollX, viewportDimensions) {
+    try {
+        console.log('Starting multi-capture stitching...');
+        
+        // Calculate how many viewport captures we need
+        const viewportHeight = viewportDimensions.height;
+        const viewportWidth = viewportDimensions.width;
+        
+        // For simplicity, limit to reasonable selection sizes
+        const maxCaptureHeight = viewportHeight * 5; // Max 5 viewport heights
+        const maxCaptureWidth = viewportWidth * 3; // Max 3 viewport widths
+        
+        if (documentRect.height > maxCaptureHeight || documentRect.width > maxCaptureWidth) {
+            throw new Error(`Selection too large. Max: ${maxCaptureWidth}x${maxCaptureHeight}px`);
+        }
+        
+        // Number of captures needed
+        const numVerticalCaptures = Math.ceil(documentRect.height / viewportHeight);
+        const numHorizontalCaptures = Math.ceil(documentRect.width / viewportWidth);
+        
+        console.log(`Need ${numVerticalCaptures}x${numHorizontalCaptures} captures`);
+        
+        // Capture tiles
+        const captures = [];
+        for (let row = 0; row < numVerticalCaptures; row++) {
+            for (let col = 0; col < numHorizontalCaptures; col++) {
+                const scrollX = documentRect.left + (col * viewportWidth);
+                const scrollY = documentRect.top + (row * viewportHeight);
+                
+                // Scroll to position
+                await browser.scripting.executeScript({
+                    target: { tabId: tabId },
+                    func: (x, y) => window.scrollTo(x, y),
+                    args: [scrollX, scrollY]
+                });
+                
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 150));
+                
+                // Capture viewport
+                const dataUrl = await browser.tabs.captureVisibleTab(null, { format: "png" });
+                captures.push({ dataUrl, row, col, scrollX, scrollY });
+                
+                console.log(`Captured tile ${row},${col}`);
+            }
+        }
+        
+        // Restore original scroll
+        await browser.scripting.executeScript({
+            target: { tabId: tabId },
+            func: (x, y) => window.scrollTo(x, y),
+            args: [originalScrollX, originalScrollY]
+        });
+        
+        // Stitch captures together and crop to selection
+        const result = await browser.scripting.executeScript({
+            target: { tabId: tabId },
+            func: async (captures, docRect, origScrollX, origScrollY, vpWidth, vpHeight) => {
+                try {
+                    const dpr = window.devicePixelRatio || 1;
+                    
+                    // Create final canvas for stitched result
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = docRect.width * dpr;
+                    finalCanvas.height = docRect.height * dpr;
+                    const ctx = finalCanvas.getContext('2d');
+                    ctx.scale(dpr, dpr);
+                    
+                    // Process each capture
+                    for (const capture of captures) {
+                        const img = new Image();
+                        await new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = reject;
+                            img.src = capture.dataUrl;
+                        });
+                        
+                        // Calculate where this tile goes in the final image
+                        const tileOffsetX = (capture.scrollX - docRect.left);
+                        const tileOffsetY = (capture.scrollY - docRect.top);
+                        
+                        // Calculate what part of the captured image to use
+                        const sourceX = 0;
+                        const sourceY = 0;
+                        const sourceWidth = Math.min(vpWidth, docRect.width - tileOffsetX);
+                        const sourceHeight = Math.min(vpHeight, docRect.height - tileOffsetY);
+                        
+                        // Draw this tile onto the final canvas
+                        ctx.drawImage(
+                            img,
+                            sourceX * dpr, sourceY * dpr,
+                            sourceWidth * dpr, sourceHeight * dpr,
+                            tileOffsetX, tileOffsetY,
+                            sourceWidth, sourceHeight
+                        );
+                    }
+                    
+                    // Convert to blob and copy to clipboard
+                    const blob = await new Promise(resolve => {
+                        finalCanvas.toBlob(resolve, 'image/png');
+                    });
+                    
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.toString() };
+                }
+            },
+            args: [captures, documentRect, originalScrollX, originalScrollY, viewportWidth, viewportHeight]
+        });
+        
+        if (result && result[0] && result[0].result && result[0].result.success) {
+            // Show success notification
+            await browser.notifications.create({
+                type: 'basic',
+                iconUrl: browser.runtime.getURL('icons/icon-48.png'),
+                title: 'Screenshot Captured',
+                message: 'Full selection captured to clipboard!'
+            });
+        } else {
+            throw new Error(result[0]?.result?.error || 'Stitching failed');
+        }
+        
+    } catch (error) {
+        console.error('Error during stitching:', error);
+        throw error;
+    }
+}
+
+// Fallback method: Capture with scroll (original approach)
+async function captureWithScrollFallback(tabId, rect, documentRect, originalScrollY, originalScrollX) {
+    try {
+        
+        // Determine if we need to scroll to capture the selection
+        // If the selection extends beyond the current viewport, we need to position it optimally
+        const viewportDimensions = await browser.scripting.executeScript({
+            target: { tabId: tabId },
+            func: () => ({ width: window.innerWidth, height: window.innerHeight })
+        }).then(results => results[0].result);
+        
+        let needsScroll = false;
+        let targetScrollY = originalScrollY;
+        let targetScrollX = originalScrollX;
+        
+        // Check if selection is fully visible in current viewport (vertically)
+        if (rect.top < 0 || rect.top + rect.height > viewportDimensions.height) {
+            needsScroll = true;
+            // Scroll to center the selection vertically
+            targetScrollY = documentRect.top - (viewportDimensions.height - documentRect.height) / 2;
+            targetScrollY = Math.max(0, targetScrollY); // Don't scroll above page
+        }
+        
+        // Check if selection is fully visible in current viewport (horizontally)
+        if (rect.left < 0 || rect.left + rect.width > viewportDimensions.width) {
+            needsScroll = true;
+            // Scroll to center the selection horizontally
+            targetScrollX = documentRect.left - (viewportDimensions.width - documentRect.width) / 2;
+            targetScrollX = Math.max(0, targetScrollX); // Don't scroll left of page
+        }
+        
+        // If we need to scroll, do it before capturing
+        if (needsScroll) {
+            await browser.scripting.executeScript({
+                target: { tabId: tabId },
+                func: (scrollX, scrollY) => {
+                    window.scrollTo(scrollX, scrollY);
+                },
+                args: [targetScrollX, targetScrollY]
+            });
+            
+            // Wait a bit for the scroll to complete and page to render
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Recalculate viewport-relative coordinates based on new scroll position
+            // Create a new rect object instead of modifying the parameter
+            rect = {
+                left: documentRect.left - targetScrollX,
+                top: documentRect.top - targetScrollY,
+                width: rect.width,
+                height: rect.height
+            };
         }
         
         // Capture the entire visible tab
@@ -133,6 +355,21 @@ async function captureAndCropScreenshot(tabId, rect) {
         console.log('Script execution result:', results);
         
         if (results && results[0] && results[0].result && results[0].result.success) {
+            // Restore original scroll position if we changed it
+            if (needsScroll) {
+                try {
+                    await browser.scripting.executeScript({
+                        target: { tabId: tabId },
+                        func: (scrollX, scrollY) => {
+                            window.scrollTo(scrollX, scrollY);
+                        },
+                        args: [originalScrollX, originalScrollY]
+                    });
+                } catch (e) {
+                    console.log('Could not restore scroll position:', e);
+                }
+            }
+            
             // Play capture sound
             try {
                 await browser.scripting.executeScript({

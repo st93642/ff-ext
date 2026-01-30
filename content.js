@@ -5,11 +5,14 @@
     let isSelecting = false;
     let startX = 0;
     let startY = 0;
+    let startDocumentX = 0; // Document coordinates at selection start
+    let startDocumentY = 0;
     let currentMouseX = 0; // Track current mouse X position for auto-scroll
     let currentMouseY = 0; // Track current mouse Y position for auto-scroll
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
+    let currentScrollDirection = null; // Track scroll direction independently
     
     // Create overlay elements
     function createOverlay() {
@@ -80,13 +83,31 @@
         isSelecting = false;
     }
     
+    // Helper function to get current scroll position
+    function getCurrentScrollY() {
+        return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    }
+    
+    // Helper function to get current horizontal scroll position
+    function getCurrentScrollX() {
+        return window.scrollX || window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0;
+    }
+    
     // Helper function to update selection box dimensions
     function updateSelectionBox() {
         if (isSelecting && selectionBox) {
-            const left = Math.min(startX, currentMouseX);
-            const top = Math.min(startY, currentMouseY);
-            const width = Math.abs(currentMouseX - startX);
-            const height = Math.abs(currentMouseY - startY);
+            // Convert document coordinates back to viewport coordinates for display
+            const currentScrollY = getCurrentScrollY();
+            const currentScrollX = getCurrentScrollX();
+            const startViewportX = startDocumentX - currentScrollX;
+            const startViewportY = startDocumentY - currentScrollY;
+            const currentViewportX = currentMouseX;
+            const currentViewportY = currentMouseY;
+            
+            const left = Math.min(startViewportX, currentViewportX);
+            const top = Math.min(startViewportY, currentViewportY);
+            const width = Math.abs(currentViewportX - startViewportX);
+            const height = Math.abs(currentViewportY - startViewportY);
             
             selectionBox.style.left = left + 'px';
             selectionBox.style.top = top + 'px';
@@ -102,6 +123,13 @@
         isSelecting = true;
         startX = e.clientX;
         startY = e.clientY;
+        
+        // Store document coordinates for proper handling of scrolling
+        const scrollY = getCurrentScrollY();
+        const scrollX = getCurrentScrollX();
+        startDocumentX = startX + scrollX;
+        startDocumentY = startY + scrollY;
+        
         currentMouseX = e.clientX; // Initialize current mouse position
         currentMouseY = e.clientY;
         
@@ -132,114 +160,158 @@
     }
     
     // Robust scroll function that works on all websites
-    // Tries multiple methods with early return on success
+    // Tries multiple methods including bypasses for restricted sites
     function performScroll(deltaY) {
-        // Helper to get current scroll position consistently
-        function getCurrentScroll() {
-            return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-        }
-        
-        const initialScroll = getCurrentScroll();
+        // Use the helper function for consistency
+        const initialScroll = getCurrentScrollY();
         const targetScroll = initialScroll + deltaY;
         
-        // Method 1: Try window.scrollBy() (standard method)
+        // Method 1: Try window.scrollBy() with behavior smooth (standard method)
         try {
-            window.scrollBy(0, deltaY);
+            window.scrollBy({ top: deltaY, behavior: 'auto' });
             // Check if it worked (allow 1px tolerance for rounding)
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
-            // Continue to next method
+            // Try without options object (older browsers)
+            try {
+                window.scrollBy(0, deltaY);
+                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
+            } catch (e2) {
+                // Continue to next method
+            }
         }
         
         // Method 2: Try window.scroll() with absolute position
         try {
             window.scroll(0, targetScroll);
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
         
-        // Method 3: Direct manipulation of scrollTop (bypasses most restrictions)
+        // Method 3: Direct manipulation of scrollTop on scrollingElement (bypasses most restrictions)
         try {
             if (document.scrollingElement) {
-                document.scrollingElement.scrollTop = targetScroll;
-                if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+                // Use Object.defineProperty bypass for sites that override scrollTop
+                const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+                if (descriptor && descriptor.set) {
+                    descriptor.set.call(document.scrollingElement, targetScroll);
+                } else {
+                    document.scrollingElement.scrollTop = targetScroll;
+                }
+                if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
             }
         } catch (e) {
             // Continue to next method
         }
         
-        // Method 4: Try document.documentElement.scrollTop
+        // Method 4: Try document.documentElement.scrollTop with descriptor bypass
         try {
-            document.documentElement.scrollTop = targetScroll;
-            if (Math.abs(getCurrentScroll() - targetScroll) < 1) return;
+            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+            if (descriptor && descriptor.set) {
+                descriptor.set.call(document.documentElement, targetScroll);
+            } else {
+                document.documentElement.scrollTop = targetScroll;
+            }
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
             // Continue to next method
         }
         
-        // Method 5: Try document.body.scrollTop (for older browsers/websites)
+        // Method 5: Try document.body.scrollTop with descriptor bypass
         try {
-            document.body.scrollTop = targetScroll;
-            // No check needed - last attempt
+            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+            if (descriptor && descriptor.set) {
+                descriptor.set.call(document.body, targetScroll);
+            } else {
+                document.body.scrollTop = targetScroll;
+            }
+            if (Math.abs(getCurrentScrollY() - targetScroll) < 1) return;
         } catch (e) {
-            // All methods failed - scroll may be restricted on this site
+            // Continue to next method
+        }
+        
+        // Method 6: Try manipulating transform property (ultimate bypass for locked scroll)
+        try {
+            const html = document.documentElement;
+            const currentTransform = window.getComputedStyle(html).transform;
+            const currentY = currentTransform !== 'none' ? parseFloat(currentTransform.split(',')[5] || 0) : 0;
+            html.style.transform = `translateY(${currentY - deltaY}px)`;
+            // Note: This doesn't actually scroll, but visually moves content
+        } catch (e) {
+            // All methods failed - scroll may be heavily restricted on this site
         }
     }
     
     // Handle auto-scroll when mouse is near viewport edges
     function handleAutoScroll(mouseY) {
-        // Clear any existing scroll interval
-        if (scrollInterval) {
-            clearInterval(scrollInterval);
-            scrollInterval = null;
-        }
-        
         const scrollThreshold = 50; // pixels from edge to trigger scroll
         const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
         
         // Check if mouse is near bottom edge and can scroll down
         const canScrollDown = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight;
-        if (mouseY > viewportHeight - scrollThreshold && canScrollDown) {
+        const isNearBottom = mouseY > viewportHeight - scrollThreshold;
+        
+        // Check if mouse is near top edge and can scroll up
+        const canScrollUp = window.scrollY > 0;
+        const isNearTop = mouseY < scrollThreshold;
+        
+        // If we're in a scroll zone and not already scrolling in that direction
+        if (isNearBottom && canScrollDown && currentScrollDirection !== 'down') {
+            // Clear any existing scroll interval
+            if (scrollInterval) {
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+            }
+            
             scrollInterval = setInterval(() => {
                 // Check if we can still scroll
                 if ((window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight) {
                     clearInterval(scrollInterval);
                     scrollInterval = null;
+                    currentScrollDirection = null;
                     return;
                 }
                 
                 // Use robust scroll method
                 performScroll(scrollSpeed);
                 
-                // Adjust startY to keep it anchored to the same document position
-                // As we scroll down, the start point appears to move up in viewport coordinates
-                startY -= scrollSpeed;
-                
-                // Update selection box to reflect the adjusted start position
+                // Update selection box to reflect the new scroll position
                 updateSelectionBox();
             }, 16); // ~60fps
+            currentScrollDirection = 'down';
         }
         // Check if mouse is near top edge and can scroll up
-        else if (mouseY < scrollThreshold && window.scrollY > 0) {
+        else if (isNearTop && canScrollUp && currentScrollDirection !== 'up') {
+            // Clear any existing scroll interval
+            if (scrollInterval) {
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+            }
+            
             scrollInterval = setInterval(() => {
                 // Check if we can still scroll
                 if (window.scrollY <= 0) {
                     clearInterval(scrollInterval);
                     scrollInterval = null;
+                    currentScrollDirection = null;
                     return;
                 }
                 
                 // Use robust scroll method
                 performScroll(-scrollSpeed);
                 
-                // Adjust startY to keep it anchored to the same document position
-                // As we scroll up, the start point appears to move down in viewport coordinates
-                startY += scrollSpeed;
-                
-                // Update selection box to reflect the adjusted start position
+                // Update selection box to reflect the new scroll position
                 updateSelectionBox();
             }, 16); // ~60fps
+            currentScrollDirection = 'up';
+        }
+        // If we're not in a scroll zone, clear the interval
+        else if (!isNearBottom && !isNearTop && scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            currentScrollDirection = null;
         }
     }
     
@@ -250,27 +322,49 @@
         if (scrollInterval) {
             clearInterval(scrollInterval);
             scrollInterval = null;
+            currentScrollDirection = null;
         }
         
         isSelecting = false;
         
-        // Get selection dimensions (viewport-relative)
-        const rect = {
-            left: parseInt(selectionBox.style.left),
-            top: parseInt(selectionBox.style.top),
-            width: parseInt(selectionBox.style.width),
-            height: parseInt(selectionBox.style.height)
-        };
+        // Get current scroll positions and calculate document coordinates
+        const currentScrollY = getCurrentScrollY();
+        const currentScrollX = getCurrentScrollX();
+        const currentDocumentX = currentMouseX + currentScrollX;
+        const currentDocumentY = currentMouseY + currentScrollY;
+        
+        // Calculate selection in document coordinates
+        const docLeft = Math.min(startDocumentX, currentDocumentX);
+        const docTop = Math.min(startDocumentY, currentDocumentY);
+        const docWidth = Math.abs(currentDocumentX - startDocumentX);
+        const docHeight = Math.abs(currentDocumentY - startDocumentY);
         
         // Only capture if selection has some size
-        if (rect.width > 5 && rect.height > 5) {
-            // Coordinates are already viewport-relative (clientX/clientY based)
-            // They don't need scroll offset since captureVisibleTab only captures viewport
+        if (docWidth > 5 && docHeight > 5) {
+            // Calculate viewport coordinates for the selection
+            // These coordinates are passed to the background script which will
+            // check if the selection is visible and scroll if necessary before capture
+            const viewportLeft = docLeft - currentScrollX;
+            const viewportTop = docTop - currentScrollY;
             
             // Send message to background script to capture
+            // Include both viewport and document coordinates
             browser.runtime.sendMessage({
                 action: 'captureSelection',
-                rect: rect
+                rect: {
+                    left: viewportLeft,
+                    top: viewportTop,
+                    width: docWidth,
+                    height: docHeight
+                },
+                documentRect: {
+                    left: docLeft,
+                    top: docTop,
+                    width: docWidth,
+                    height: docHeight
+                },
+                currentScrollY: currentScrollY,
+                currentScrollX: currentScrollX
             });
         }
         
