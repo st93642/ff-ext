@@ -361,20 +361,23 @@
             
             // If we have a new direction, start scrolling
             if (newDirection) {
+                // Capture direction in the closure to avoid stale reference
+                const scrollDirection = newDirection;
+                
                 scrollInterval = setInterval(() => {
                     // Calculate scroll deltas based on direction
                     let deltaX = 0;
                     let deltaY = 0;
                     
-                    if (newDirection.includes('down')) {
+                    if (scrollDirection.includes('down')) {
                         deltaY = scrollSpeed;
-                    } else if (newDirection.includes('up')) {
+                    } else if (scrollDirection.includes('up')) {
                         deltaY = -scrollSpeed;
                     }
                     
-                    if (newDirection.includes('right')) {
+                    if (scrollDirection.includes('right')) {
                         deltaX = scrollSpeed;
-                    } else if (newDirection.includes('left')) {
+                    } else if (scrollDirection.includes('left')) {
                         deltaX = -scrollSpeed;
                     }
                     
@@ -384,16 +387,26 @@
                     const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
                     const maxScrollX = Math.max(0, document.documentElement.scrollWidth - window.innerWidth);
                     
-                    // Stop if we've reached the limit in any direction we're trying to scroll
-                    if ((deltaY > 0 && currentScrollY >= maxScrollY) ||
-                        (deltaY < 0 && currentScrollY <= 0) ||
-                        (deltaX > 0 && currentScrollX >= maxScrollX) ||
-                        (deltaX < 0 && currentScrollX <= 0)) {
+                    // Check if we've reached limits for active scroll directions
+                    const verticalBlocked = (deltaY > 0 && currentScrollY >= maxScrollY) || (deltaY < 0 && currentScrollY <= 0);
+                    const horizontalBlocked = (deltaX > 0 && currentScrollX >= maxScrollX) || (deltaX < 0 && currentScrollX <= 0);
+                    
+                    // For diagonal scrolling, allow continuation if at least one direction can still scroll
+                    // For single-direction scrolling, stop when that direction is blocked
+                    const shouldStop = (deltaX !== 0 && deltaY !== 0) 
+                        ? (verticalBlocked && horizontalBlocked)  // Diagonal: stop only if both blocked
+                        : (verticalBlocked || horizontalBlocked); // Single: stop if the active direction is blocked
+                    
+                    if (shouldStop) {
                         clearInterval(scrollInterval);
                         scrollInterval = null;
                         currentScrollDirection = null;
                         return;
                     }
+                    
+                    // Zero out blocked directions for diagonal scrolling
+                    if (verticalBlocked) deltaY = 0;
+                    if (horizontalBlocked) deltaX = 0;
                     
                     // Use robust scroll method and check if it succeeded
                     const scrolled = performScroll(deltaX, deltaY);
