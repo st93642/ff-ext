@@ -70,20 +70,31 @@ async function captureAndCropScreenshot(tabId, rect) {
                     // Get device pixel ratio for high-DPI screens
                     const dpr = window.devicePixelRatio || 1;
                     
-                    // Validate that crop area is within image bounds
+                    // Validate and clamp crop area to be within image bounds
                     const maxWidth = img.width / dpr;
                     const maxHeight = img.height / dpr;
                     
-                    if (cropRect.left + cropRect.width > maxWidth || 
-                        cropRect.top + cropRect.height > maxHeight ||
-                        cropRect.left < 0 || cropRect.top < 0) {
-                        throw new Error('Selection area exceeds image bounds');
+                    // Clamp the crop rectangle to image bounds (allow small rounding errors)
+                    const clampedRect = {
+                        left: Math.max(0, Math.min(cropRect.left, maxWidth - 1)),
+                        top: Math.max(0, Math.min(cropRect.top, maxHeight - 1)),
+                        width: cropRect.width,
+                        height: cropRect.height
+                    };
+                    
+                    // Adjust width and height to fit within bounds
+                    clampedRect.width = Math.min(clampedRect.width, maxWidth - clampedRect.left);
+                    clampedRect.height = Math.min(clampedRect.height, maxHeight - clampedRect.top);
+                    
+                    // Ensure we have a valid selection
+                    if (clampedRect.width <= 0 || clampedRect.height <= 0) {
+                        throw new Error('Selection area is invalid or too small');
                     }
                     
                     // Create a canvas to crop the image
                     const canvas = document.createElement('canvas');
-                    canvas.width = cropRect.width * dpr;
-                    canvas.height = cropRect.height * dpr;
+                    canvas.width = clampedRect.width * dpr;
+                    canvas.height = clampedRect.height * dpr;
                     
                     const ctx = canvas.getContext('2d');
                     
@@ -91,14 +102,14 @@ async function captureAndCropScreenshot(tabId, rect) {
                     // The captureVisibleTab captures the visible viewport with DPI scaling
                     ctx.drawImage(
                         img,
-                        cropRect.left * dpr,
-                        cropRect.top * dpr,
-                        cropRect.width * dpr,
-                        cropRect.height * dpr,
+                        clampedRect.left * dpr,
+                        clampedRect.top * dpr,
+                        clampedRect.width * dpr,
+                        clampedRect.height * dpr,
                         0,
                         0,
-                        cropRect.width * dpr,
-                        cropRect.height * dpr
+                        clampedRect.width * dpr,
+                        clampedRect.height * dpr
                     );
                     
                     // Convert canvas to blob

@@ -8,6 +8,7 @@
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
+    let initialScrollY = 0; // Track scroll position when selection starts
     
     // Create overlay elements
     function createOverlay() {
@@ -83,6 +84,7 @@
         isSelecting = true;
         startX = e.clientX;
         startY = e.clientY;
+        initialScrollY = window.scrollY; // Store initial scroll position
         
         selectionBox.style.left = startX + 'px';
         selectionBox.style.top = startY + 'px';
@@ -100,19 +102,24 @@
         const currentX = e.clientX;
         const currentY = e.clientY;
         
+        // Calculate the scroll delta since selection started
+        const scrollDelta = window.scrollY - initialScrollY;
+        
         // Calculate selection box dimensions
+        // The box should represent the area on the page, accounting for scroll
         const left = Math.min(startX, currentX);
         const top = Math.min(startY, currentY);
         const width = Math.abs(currentX - startX);
         const height = Math.abs(currentY - startY);
         
+        // Update selection box - stays viewport-fixed but dimensions account for scroll
         selectionBox.style.left = left + 'px';
         selectionBox.style.top = top + 'px';
         selectionBox.style.width = width + 'px';
         selectionBox.style.height = height + 'px';
         
         // Auto-scroll logic
-        handleAutoScroll(e.clientY);
+        handleAutoScroll(currentY);
         
         e.preventDefault();
     }
@@ -126,7 +133,7 @@
         }
         
         const scrollThreshold = 50; // pixels from edge to trigger scroll
-        const scrollSpeed = 10; // pixels per interval
+        const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
         
         // Check if mouse is near bottom edge and can scroll down
@@ -141,12 +148,6 @@
                 }
                 
                 window.scrollBy(0, scrollSpeed);
-                
-                // Update selection box position during scroll
-                if (selectionBox && isSelecting) {
-                    const currentHeight = parseInt(selectionBox.style.height);
-                    selectionBox.style.height = (currentHeight + scrollSpeed) + 'px';
-                }
             }, 16); // ~60fps
         }
         // Check if mouse is near top edge and can scroll up
@@ -160,14 +161,6 @@
                 }
                 
                 window.scrollBy(0, -scrollSpeed);
-                
-                // Update selection box position during scroll
-                if (selectionBox && isSelecting) {
-                    const currentTop = parseInt(selectionBox.style.top);
-                    const currentHeight = parseInt(selectionBox.style.height);
-                    selectionBox.style.top = (currentTop - scrollSpeed) + 'px';
-                    selectionBox.style.height = (currentHeight + scrollSpeed) + 'px';
-                }
             }, 16); // ~60fps
         }
     }
