@@ -42,9 +42,11 @@
         document.body.appendChild(selectionBox);
         
         // Add event listeners
+        // mousedown only on overlay to start selection
         overlay.addEventListener('mousedown', handleMouseDown);
-        overlay.addEventListener('mousemove', handleMouseMove);
-        overlay.addEventListener('mouseup', handleMouseUp);
+        // mousemove and mouseup on document to track mouse even outside viewport edges
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
         
         // Add ESC key handler to document for better reliability
         document.addEventListener('keydown', handleKeyDown);
@@ -57,13 +59,13 @@
             scrollInterval = null;
         }
         
-        // Remove keydown listener from document
+        // Remove event listeners from document
         document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
         
         if (overlay) {
             overlay.removeEventListener('mousedown', handleMouseDown);
-            overlay.removeEventListener('mousemove', handleMouseMove);
-            overlay.removeEventListener('mouseup', handleMouseUp);
             overlay.remove();
             overlay = null;
         }
