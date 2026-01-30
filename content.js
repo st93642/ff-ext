@@ -80,6 +80,21 @@
         isSelecting = false;
     }
     
+    // Helper function to update selection box dimensions
+    function updateSelectionBox() {
+        if (isSelecting && selectionBox) {
+            const left = Math.min(startX, currentMouseX);
+            const top = Math.min(startY, currentMouseY);
+            const width = Math.abs(currentMouseX - startX);
+            const height = Math.abs(currentMouseY - startY);
+            
+            selectionBox.style.left = left + 'px';
+            selectionBox.style.top = top + 'px';
+            selectionBox.style.width = width + 'px';
+            selectionBox.style.height = height + 'px';
+        }
+    }
+    
     // Handle mouse down - start selection
     function handleMouseDown(e) {
         if (e.button !== 0) return; // Only left mouse button
@@ -107,17 +122,8 @@
         currentMouseX = e.clientX;
         currentMouseY = e.clientY;
         
-        // Calculate selection box dimensions (viewport-relative)
-        const left = Math.min(startX, currentMouseX);
-        const top = Math.min(startY, currentMouseY);
-        const width = Math.abs(currentMouseX - startX);
-        const height = Math.abs(currentMouseY - startY);
-        
-        // Update selection box position
-        selectionBox.style.left = left + 'px';
-        selectionBox.style.top = top + 'px';
-        selectionBox.style.width = width + 'px';
-        selectionBox.style.height = height + 'px';
+        // Update selection box using helper function
+        updateSelectionBox();
         
         // Auto-scroll logic
         handleAutoScroll(currentMouseY);
@@ -136,21 +142,6 @@
         const scrollThreshold = 50; // pixels from edge to trigger scroll
         const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
-        
-        // Helper function to update selection box
-        function updateSelectionBox() {
-            if (isSelecting && selectionBox) {
-                const left = Math.min(startX, currentMouseX);
-                const top = Math.min(startY, currentMouseY);
-                const width = Math.abs(currentMouseX - startX);
-                const height = Math.abs(currentMouseY - startY);
-                
-                selectionBox.style.left = left + 'px';
-                selectionBox.style.top = top + 'px';
-                selectionBox.style.width = width + 'px';
-                selectionBox.style.height = height + 'px';
-            }
-        }
         
         // Check if mouse is near bottom edge and can scroll down
         const canScrollDown = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight;
