@@ -87,6 +87,8 @@
         isSelecting = true;
         startX = e.clientX;
         startY = e.clientY;
+        currentMouseX = e.clientX; // Initialize current mouse position
+        currentMouseY = e.clientY;
         
         selectionBox.style.left = startX + 'px';
         selectionBox.style.top = startY + 'px';
@@ -135,6 +137,21 @@
         const scrollSpeed = 5; // pixels per interval (reduced for smoother scrolling)
         const viewportHeight = window.innerHeight;
         
+        // Helper function to update selection box
+        function updateSelectionBox() {
+            if (isSelecting && selectionBox) {
+                const left = Math.min(startX, currentMouseX);
+                const top = Math.min(startY, currentMouseY);
+                const width = Math.abs(currentMouseX - startX);
+                const height = Math.abs(currentMouseY - startY);
+                
+                selectionBox.style.left = left + 'px';
+                selectionBox.style.top = top + 'px';
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+            }
+        }
+        
         // Check if mouse is near bottom edge and can scroll down
         const canScrollDown = (window.scrollY + window.innerHeight) < document.documentElement.scrollHeight;
         if (mouseY > viewportHeight - scrollThreshold && canScrollDown) {
@@ -153,18 +170,7 @@
                 startY -= scrollSpeed;
                 
                 // Update selection box to reflect the adjusted start position
-                // Use the tracked current mouse position which updates as mouse moves
-                if (isSelecting && selectionBox) {
-                    const left = Math.min(startX, currentMouseX);
-                    const top = Math.min(startY, currentMouseY);
-                    const width = Math.abs(currentMouseX - startX);
-                    const height = Math.abs(currentMouseY - startY);
-                    
-                    selectionBox.style.left = left + 'px';
-                    selectionBox.style.top = top + 'px';
-                    selectionBox.style.width = width + 'px';
-                    selectionBox.style.height = height + 'px';
-                }
+                updateSelectionBox();
             }, 16); // ~60fps
         }
         // Check if mouse is near top edge and can scroll up
@@ -184,18 +190,7 @@
                 startY += scrollSpeed;
                 
                 // Update selection box to reflect the adjusted start position
-                // Use the tracked current mouse position which updates as mouse moves
-                if (isSelecting && selectionBox) {
-                    const left = Math.min(startX, currentMouseX);
-                    const top = Math.min(startY, currentMouseY);
-                    const width = Math.abs(currentMouseX - startX);
-                    const height = Math.abs(currentMouseY - startY);
-                    
-                    selectionBox.style.left = left + 'px';
-                    selectionBox.style.top = top + 'px';
-                    selectionBox.style.width = width + 'px';
-                    selectionBox.style.height = height + 'px';
-                }
+                updateSelectionBox();
             }, 16); // ~60fps
         }
     }
