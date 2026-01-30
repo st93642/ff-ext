@@ -5,6 +5,8 @@
     let isSelecting = false;
     let startX = 0;
     let startY = 0;
+    let currentMouseX = 0; // Track current mouse X position for auto-scroll
+    let currentMouseY = 0; // Track current mouse Y position for auto-scroll
     let overlay = null;
     let selectionBox = null;
     let scrollInterval = null;
@@ -99,14 +101,15 @@
     function handleMouseMove(e) {
         if (!isSelecting) return;
         
-        const currentX = e.clientX;
-        const currentY = e.clientY;
+        // Update current mouse position for use during auto-scroll
+        currentMouseX = e.clientX;
+        currentMouseY = e.clientY;
         
         // Calculate selection box dimensions (viewport-relative)
-        const left = Math.min(startX, currentX);
-        const top = Math.min(startY, currentY);
-        const width = Math.abs(currentX - startX);
-        const height = Math.abs(currentY - startY);
+        const left = Math.min(startX, currentMouseX);
+        const top = Math.min(startY, currentMouseY);
+        const width = Math.abs(currentMouseX - startX);
+        const height = Math.abs(currentMouseY - startY);
         
         // Update selection box position
         selectionBox.style.left = left + 'px';
@@ -115,13 +118,13 @@
         selectionBox.style.height = height + 'px';
         
         // Auto-scroll logic
-        handleAutoScroll(currentY, currentX);
+        handleAutoScroll(currentMouseY);
         
         e.preventDefault();
     }
     
     // Handle auto-scroll when mouse is near viewport edges
-    function handleAutoScroll(mouseY, mouseX) {
+    function handleAutoScroll(mouseY) {
         // Clear any existing scroll interval
         if (scrollInterval) {
             clearInterval(scrollInterval);
@@ -150,11 +153,12 @@
                 startY -= scrollSpeed;
                 
                 // Update selection box to reflect the adjusted start position
+                // Use the tracked current mouse position which updates as mouse moves
                 if (isSelecting && selectionBox) {
-                    const left = Math.min(startX, mouseX);
-                    const top = Math.min(startY, mouseY);
-                    const width = Math.abs(mouseX - startX);
-                    const height = Math.abs(mouseY - startY);
+                    const left = Math.min(startX, currentMouseX);
+                    const top = Math.min(startY, currentMouseY);
+                    const width = Math.abs(currentMouseX - startX);
+                    const height = Math.abs(currentMouseY - startY);
                     
                     selectionBox.style.left = left + 'px';
                     selectionBox.style.top = top + 'px';
@@ -180,11 +184,12 @@
                 startY += scrollSpeed;
                 
                 // Update selection box to reflect the adjusted start position
+                // Use the tracked current mouse position which updates as mouse moves
                 if (isSelecting && selectionBox) {
-                    const left = Math.min(startX, mouseX);
-                    const top = Math.min(startY, mouseY);
-                    const width = Math.abs(mouseX - startX);
-                    const height = Math.abs(mouseY - startY);
+                    const left = Math.min(startX, currentMouseX);
+                    const top = Math.min(startY, currentMouseY);
+                    const width = Math.abs(currentMouseX - startX);
+                    const height = Math.abs(currentMouseY - startY);
                     
                     selectionBox.style.left = left + 'px';
                     selectionBox.style.top = top + 'px';
