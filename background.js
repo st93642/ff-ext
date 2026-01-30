@@ -108,7 +108,7 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
         console.log(`Need ${numVerticalCaptures}x${numHorizontalCaptures} captures`);
         
         // Capture tiles with overlap to prevent gaps
-        const overlap = 2; // pixels of overlap between tiles to prevent gaps
+        const overlap = 10; // pixels of overlap between tiles to prevent gaps (increased from 2)
         const captures = [];
         for (let row = 0; row < numVerticalCaptures; row++) {
             for (let col = 0; col < numHorizontalCaptures; col++) {
@@ -146,7 +146,7 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
         // Stitch captures together and crop to selection
         const result = await browser.scripting.executeScript({
             target: { tabId: tabId },
-            func: async (captures, docRect, origScrollX, origScrollY, vpWidth, vpHeight) => {
+            func: async (captures, docRect, origScrollX, origScrollY, vpWidth, vpHeight, overlap) => {
                 try {
                     const dpr = window.devicePixelRatio || 1;
                     
@@ -167,21 +167,30 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
                         });
                         
                         // Calculate where this tile goes in the final image
+                        // Account for the overlap by adjusting the position
                         const tileOffsetX = (capture.scrollX - docRect.left);
                         const tileOffsetY = (capture.scrollY - docRect.top);
                         
-                        // Calculate what part of the captured image to use
-                        const sourceX = 0;
-                        const sourceY = 0;
-                        const sourceWidth = Math.min(vpWidth, docRect.width - tileOffsetX);
-                        const sourceHeight = Math.min(vpHeight, docRect.height - tileOffsetY);
+                        // For non-first tiles, we need to skip the overlapping part in the source
+                        // This ensures seamless stitching without gaps or visible seams
+                        const sourceOffsetX = (capture.col > 0) ? overlap : 0;
+                        const sourceOffsetY = (capture.row > 0) ? overlap : 0;
                         
-                        // Draw this tile onto the final canvas
+                        // Calculate what part of the captured image to use
+                        // Reduce the width/height by the overlap amount for non-first tiles
+                        const sourceWidth = Math.min(vpWidth - sourceOffsetX, docRect.width - tileOffsetX);
+                        const sourceHeight = Math.min(vpHeight - sourceOffsetY, docRect.height - tileOffsetY);
+                        
+                        // Adjust destination position by the source offset
+                        const destX = tileOffsetX + sourceOffsetX;
+                        const destY = tileOffsetY + sourceOffsetY;
+                        
+                        // Draw this tile onto the final canvas, skipping the overlap region
                         ctx.drawImage(
                             img,
-                            sourceX * dpr, sourceY * dpr,
+                            sourceOffsetX * dpr, sourceOffsetY * dpr,
                             sourceWidth * dpr, sourceHeight * dpr,
-                            tileOffsetX, tileOffsetY,
+                            destX, destY,
                             sourceWidth, sourceHeight
                         );
                     }
@@ -200,7 +209,7 @@ async function captureWithStitching(tabId, rect, documentRect, originalScrollY, 
                     return { success: false, error: e.toString() };
                 }
             },
-            args: [captures, documentRect, originalScrollX, originalScrollY, viewportWidth, viewportHeight]
+            args: [captures, documentRect, originalScrollX, originalScrollY, viewportWidth, viewportHeight, overlap]
         });
         
         if (result && result[0] && result[0].result && result[0].result.success) {
