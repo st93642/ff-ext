@@ -459,11 +459,16 @@
 
   // Copy image blob to clipboard
   async function copyToClipboard(blob) {
-    try {
-      const item = new ClipboardItem({ 'image/png': blob });
-      await navigator.clipboard.write([item]);
-    } catch (error) {
-      throw new Error('Failed to copy to clipboard: ' + error.message);
+    const buffer = await blob.arrayBuffer();
+    const response = await browser.runtime.sendMessage({
+      action: 'copyImageToClipboard',
+      imageData: buffer,
+      imageType: 'image/png'
+    });
+
+    if (!response || !response.success) {
+      const errorMessage = response && response.error ? response.error : 'Unknown clipboard error';
+      throw new Error('Failed to copy to clipboard: ' + errorMessage);
     }
   }
 
