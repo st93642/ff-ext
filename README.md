@@ -7,6 +7,7 @@ A powerful Firefox extension that enables users to capture any area of a webpage
 - **One-Click Activation**: Click the extension icon to immediately start area selection
 - **Auto-Scroll During Selection**: Selection automatically scrolls the page when mouse reaches viewport edges
 - **Intelligent Stitching**: Captures areas larger than viewport by automatically scrolling and stitching multiple screenshots
+- **Video & Canvas Support**: Captures video elements and HTML5 canvas content including shared screens
 - **Clipboard Integration**: Automatically copies the captured screenshot to clipboard
 - **Universal Compatibility**: Works across most websites
 - **Visual Feedback**: Toast notifications keep you informed of capture status
@@ -81,7 +82,7 @@ When capturing an area larger than the current viewport:
 - Cross-origin iframes may not be fully captured due to browser security policies
 - Some websites with aggressive CSP may limit functionality
 - Fixed/sticky headers may appear in stitched screenshots
-- WebGL/Canvas content may have rendering limitations
+- Cross-origin video/canvas elements with CORS restrictions may not be capturable
 
 ## Development
 
@@ -115,6 +116,12 @@ Verify:
 MIT License - feel free to modify and distribute.
 
 ## Version History
+
+### 1.1.0
+- Added support for capturing video elements
+- Added support for capturing HTML5 canvas elements
+- Improved capture of shared screen content
+- Better handling of media elements in iframes
 
 ### 1.0.0
 - Initial release
