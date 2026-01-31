@@ -460,32 +460,145 @@
 
   // Capture the current visible page
   async function captureVisiblePage() {
-    // Request capture from background script using tabs.captureVisibleTab
-    const dataUrl = await browser.runtime.sendMessage({
-      action: "captureVisibleTab"
-    });
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const devicePixelRatio = window.devicePixelRatio || 1;
     
-    if (!dataUrl) {
-      throw new Error('Failed to capture tab content');
+    // Create canvas for the capture
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewportWidth * devicePixelRatio);
+    canvas.height = Math.round(viewportHeight * devicePixelRatio);
+    const ctx = canvas.getContext('2d');
+    
+    // Scale context to match device pixel ratio
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    
+    try {
+      // First, try to use captureVisibleTab for the base layer
+      const dataUrl = await browser.runtime.sendMessage({
+        action: "captureVisibleTab"
+      });
+      
+      if (dataUrl) {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, viewportWidth, viewportHeight);
+            resolve();
+          };
+          img.onerror = () => reject(new Error('Failed to load captured image'));
+          img.src = dataUrl;
+        });
+      }
+    } catch (error) {
+      console.warn('captureVisibleTab failed, using fallback:', error);
+      // Fill with white background as fallback
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, viewportWidth, viewportHeight);
     }
     
-    // Convert data URL to canvas
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    
-    await new Promise((resolve, reject) => {
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        resolve();
-      };
-      img.onerror = () => reject(new Error('Failed to load captured image'));
-      img.src = dataUrl;
-    });
+    // Now overlay video and canvas elements that captureVisibleTab can't capture
+    await captureMediaElements(ctx, viewportWidth, viewportHeight);
     
     return canvas;
+  }
+  
+  // Capture video, canvas, and other media elements that captureVisibleTab misses
+  async function captureMediaElements(ctx, viewportWidth, viewportHeight) {
+    const scroll = getScroll();
+    
+    // Capture all video elements
+    const videos = document.querySelectorAll('video');
+    for (const video of videos) {
+      try {
+        const rect = video.getBoundingClientRect();
+        
+        // Check if video is visible in viewport
+        if (rect.width > 0 && rect.height > 0 &&
+            rect.left < viewportWidth && rect.right > 0 &&
+            rect.top < viewportHeight && rect.bottom > 0) {
+          
+          // Create temporary canvas for video
+          const videoCanvas = document.createElement('canvas');
+          videoCanvas.width = rect.width;
+          videoCanvas.height = rect.height;
+          const videoCtx = videoCanvas.getContext('2d');
+          
+          // Draw video frame
+          videoCtx.drawImage(video, 0, 0, rect.width, rect.height);
+          
+          // Draw onto main canvas at correct position
+          ctx.drawImage(videoCanvas, rect.left, rect.top, rect.width, rect.height);
+        }
+      } catch (error) {
+        console.warn('Failed to capture video element:', error);
+      }
+    }
+    
+    // Capture all canvas elements
+    const canvases = document.querySelectorAll('canvas');
+    for (const sourceCanvas of canvases) {
+      try {
+        // Skip our own canvases
+        if (sourceCanvas.id && sourceCanvas.id.startsWith('__screenshot_')) {
+          continue;
+        }
+        
+        const rect = sourceCanvas.getBoundingClientRect();
+        
+        // Check if canvas is visible in viewport
+        if (rect.width > 0 && rect.height > 0 &&
+            rect.left < viewportWidth && rect.right > 0 &&
+            rect.top < viewportHeight && rect.bottom > 0) {
+          
+          // Draw canvas onto main canvas at correct position
+          ctx.drawImage(sourceCanvas, rect.left, rect.top, rect.width, rect.height);
+        }
+      } catch (error) {
+        console.warn('Failed to capture canvas element:', error);
+      }
+    }
+    
+    // Capture iframe videos (for same-origin iframes)
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of iframes) {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) continue; // Cross-origin iframe
+        
+        const rect = iframe.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        
+        const iframeVideos = iframeDoc.querySelectorAll('video');
+        for (const video of iframeVideos) {
+          try {
+            const videoRect = video.getBoundingClientRect();
+            
+            // Calculate position relative to main viewport
+            const absoluteLeft = rect.left + videoRect.left;
+            const absoluteTop = rect.top + videoRect.top;
+            
+            // Check if visible
+            if (videoRect.width > 0 && videoRect.height > 0 &&
+                absoluteLeft < viewportWidth && absoluteLeft + videoRect.width > 0 &&
+                absoluteTop < viewportHeight && absoluteTop + videoRect.height > 0) {
+              
+              const videoCanvas = document.createElement('canvas');
+              videoCanvas.width = videoRect.width;
+              videoCanvas.height = videoRect.height;
+              const videoCtx = videoCanvas.getContext('2d');
+              
+              videoCtx.drawImage(video, 0, 0, videoRect.width, videoRect.height);
+              ctx.drawImage(videoCanvas, absoluteLeft, absoluteTop, videoRect.width, videoRect.height);
+            }
+          } catch (error) {
+            console.warn('Failed to capture iframe video:', error);
+          }
+        }
+      } catch (error) {
+        // Likely a cross-origin iframe, skip
+      }
+    }
   }
 
   // Copy image blob to clipboard
