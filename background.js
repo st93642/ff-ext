@@ -1,3 +1,16 @@
+/*****************************************************************************/
+/*                                                                           */
+/*  background.js                                        TTTTTTTT SSSSSSS II */
+/*                                                          TT    SS      II */
+/*  By: st93642@students.tsi.lv                             TT    SSSSSSS II */
+/*                                                          TT         SS II */
+/*  Created: Jan 31 2026 08:04 st93642                      TT    SSSSSSS II */
+/*  Updated: Jan 31 2026 08:04 st93642                                       */
+/*                                                                           */
+/*   Transport and Telecommunication Institute - Riga, Latvia                */
+/*                       https://tsi.lv                                      */
+/*****************************************************************************/
+
 // Background script for Screenshot Area Capture extension
 
 browser.browserAction.onClicked.addListener(async (tab) => {
