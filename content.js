@@ -255,6 +255,14 @@
       return;
     }
 
+    // Hide selection UI before capture so it doesn't appear in the screenshot
+    // (tabs.captureVisibleTab captures what's currently rendered)
+    overlay.style.display = 'none';
+    selectionBox.style.display = 'none';
+
+    // Let the browser paint the UI changes before capturing
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     // Capture the selected area
     try {
       await captureArea(left, top, width, height);
@@ -265,9 +273,9 @@
         action: "captureError",
         error: error.message
       });
+    } finally {
+      removeSelectionUI();
     }
-
-    removeSelectionUI();
   }
 
   // Handle escape key
