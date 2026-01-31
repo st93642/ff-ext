@@ -28,5 +28,14 @@
     "<all_urls>"
   ],
   "content_security_policy": "script-src 'self'; object-src 'self'",
-  "web_accessible_resources": []
+  "web_accessible_resources": [],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "screenshot-area-capture@example.com",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "data_collection": []
+      }
+    }
+  }
 }
