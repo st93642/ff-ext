@@ -14,8 +14,8 @@ A powerful browser extension that enables users to capture any area of a webpage
 
 ## Supported Browsers
 
-- **Google Chrome**: Full support (Manifest V2)
-- **Yandex Browser**: Full support (Manifest V2)
+- **Google Chrome**: Full support (Manifest V3)
+- **Yandex Browser**: Full support (Manifest V3)
 - Minimum Chrome version: 88+
 - Minimum Yandex Browser version: 21+ (Chromium-based)
 

@@ -22,6 +22,11 @@
   }
   window.__screenshotExtensionLoaded = true;
 
+  // Utility: sleep
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   let isSelecting = false;
   let startX = 0;
   let startY = 0;
@@ -326,8 +331,6 @@
       // Copy to clipboard
       await copyToClipboard(blob);
       
-      showNotification('Screenshot copied to clipboard!', false);
-      
       chrome.runtime.sendMessage({
         action: "captureDone"
       });
@@ -452,6 +455,9 @@
             (col * stepX) * scaleX, (row * stepY) * scaleY, captureWidth * scaleX, captureHeight * scaleY
           );
         }
+
+        // Add delay between captures to avoid rate limiting
+        await sleep(500);
       }
     }
 
@@ -601,22 +607,10 @@
     }
   }
 
-  // Copy image blob to clipboard
+  // Copy image blob to clipboard (primary action)
   async function copyToClipboard(blob) {
-    // Prefer writing directly from the content script (Chrome requirement).
-    if (navigator.clipboard && window.ClipboardItem) {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-        return;
-      } catch (error) {
-        // Fall back to background-assisted approach (executeScript) for cases where
-        // clipboard write requires a fresh user gesture or other transient conditions.
-        console.warn('Direct clipboard write failed, falling back:', error);
-      }
-    }
-
+    // Use background script method first - it has proper user gesture context from extension click
+    // Direct clipboard write loses user gesture context after async operations during multi-viewport captures
     const dataUrl = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -624,14 +618,39 @@
       reader.readAsDataURL(blob);
     });
 
-    const response = await chrome.runtime.sendMessage({
-      action: 'copyImageToClipboard',
-      dataUrl
-    });
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'copyImageToClipboard',
+        dataUrl
+      });
 
-    if (!response || !response.success) {
+      if (response && response.success) {
+        showNotification('Screenshot copied to clipboard!', false);
+        return;
+      }
+      
       const errorMessage = response && response.error ? response.error : 'Unknown clipboard error';
+      console.warn('Background clipboard method failed:', errorMessage);
       throw new Error('Failed to copy to clipboard: ' + errorMessage);
+    } catch (error) {
+      // If background method fails, try direct clipboard as fallback
+      console.warn('Background clipboard method failed, trying direct clipboard:', error);
+      
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          showNotification('Screenshot copied to clipboard!', false);
+          return;
+        } catch (directError) {
+          console.warn('Direct clipboard write also failed:', directError);
+        }
+      }
+      
+      // If all clipboard methods fail, offer download as final fallback
+      console.warn('All clipboard methods failed, offering download');
+      await offerDownloadFallback(blob);
     }
   }
 
@@ -702,9 +721,26 @@
     }
   }
 
-  // Utility: sleep
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // Offer download fallback when clipboard fails
+  async function offerDownloadFallback(blob) {
+    const url = URL.createObjectURL(blob);
+    const filename = `screenshot-${Date.now()}.png`;
+
+    // Create a temporary download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+
+    // Trigger download
+    link.click();
+
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showNotification(`Clipboard access denied. Screenshot saved as ${filename}.`, true);
   }
 
   // Start selection mode

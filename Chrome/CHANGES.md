@@ -23,27 +23,31 @@ Chrome/
 
 ### 1. manifest.json
 
+**Migrated to Manifest V3:**
+- `manifest_version`: 2 → 3
+- `browser_action` → `action`
+- `background.scripts` → `background.service_worker`
+- Permissions reorganized: `permissions` for API access, `host_permissions` for host matching
+- Removed `clipboardWrite` (handled via user gesture in content script)
+- Updated CSP format for extension pages
+- Added `scripting` permission for content script injection
+
 **Removed (Firefox-specific):**
 - `browser_specific_settings` with `gecko` configuration
 - `clipboardRead` permission (not needed for Chrome/Yandex)
-
-**Kept:**
-- Manifest V2 format for broad compatibility
-- `browser_action` (same as Firefox)
-- All other permissions and settings
 
 ### 2. background.js
 
 **API Changes:**
 - Changed all `browser.*` to `chrome.*`
-- All functionality remains identical
-- Same message handling and logic
+- Migrated to service worker architecture (Manifest V3)
+- Updated content script injection to use `chrome.scripting.executeScript`
+- Clipboard implementation uses function injection instead of code string
 
 **Changed:**
-- `browser.browserAction` → `chrome.browserAction`
-- `browser.tabs` → `chrome.tabs`
-- `browser.runtime` → `chrome.runtime`
-- `browser.clipboard` → `chrome.clipboard`
+- `chrome.browserAction` → `chrome.action`
+- `chrome.tabs.executeScript` → `chrome.scripting.executeScript`
+- Clipboard code injection replaced with function injection for better security
 
 ### 3. content.js
 
@@ -51,9 +55,16 @@ Chrome/
 - Changed all `browser.*` to `chrome.*`
 - All functionality remains identical
 - Same auto-scroll and stitching logic
+- Added rate limiting delay in stitching loop to prevent captureVisibleTab quota exceeded errors
+- Clipboard functionality uses background script method as primary (preserves user gesture context)
+- Fixed sleep function hoisting issue by moving to top of scope
 
 **Changed:**
 - `browser.runtime.sendMessage()` → `chrome.runtime.sendMessage()`
+- Added 500ms delay between captures in multi-view stitching to comply with Chrome's MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota
+- Clipboard copy now prioritizes background script method (maintains user gesture context), with direct clipboard and download fallbacks
+- Moved sleep utility function to top of IIFE to fix ReferenceError
+- Background script method is more reliable for multi-viewport captures due to user gesture preservation
 - `browser.runtime.onMessage` → `chrome.runtime.onMessage`
 
 ### 4. Icons

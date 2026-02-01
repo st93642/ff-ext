@@ -13,12 +13,12 @@
 
 // Background script for Screenshot Area Capture extension
 
-chrome.browserAction.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener(async (tab) => {
   try {
     // Inject content script into the active tab
-    await chrome.tabs.executeScript(tab.id, {
-      file: "content.js",
-      runAt: "document_idle"
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content.js"]
     });
 
     // Send message to start selection
@@ -48,8 +48,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     return true; // Keep channel open for async response
   } else if (message.action === "copyImageToClipboard") {
-    // In Chrome, writing images to the clipboard must be done from a document context
-    // (content script) via navigator.clipboard.write() + ClipboardItem.
+    // Handle clipboard copy from background script
     const tabId = sender && sender.tab && sender.tab.id;
     if (typeof tabId !== 'number') {
       sendResponse({ success: false, error: "No sender tab for clipboard operation" });
@@ -62,10 +61,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
-    const code = `
-      (async () => {
+    chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: async (dataUrl) => {
         try {
-          const blob = await fetch(${JSON.stringify(dataUrl)}).then(r => r.blob());
+          const blob = await fetch(dataUrl).then(r => r.blob());
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': blob })
           ]);
@@ -73,16 +73,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } catch (error) {
           return { success: false, error: (error && error.message) ? error.message : String(error) };
         }
-      })();
-    `;
-
-    chrome.tabs.executeScript(tabId, { code, runAt: 'document_idle' }, (results) => {
+      },
+      args: [dataUrl]
+    }, (results) => {
       if (chrome.runtime.lastError) {
         sendResponse({ success: false, error: chrome.runtime.lastError.message });
         return;
       }
 
-      const result = Array.isArray(results) ? results[0] : null;
+      const result = results[0].result;
       if (!result || result.success !== true) {
         sendResponse({ success: false, error: (result && result.error) ? result.error : 'Clipboard write failed' });
         return;

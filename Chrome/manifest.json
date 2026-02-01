@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Screenshot Area Capture",
   "version": "1.2.0",
   "description": "Click to select and capture any area with auto-scroll support. Captures video and canvas elements. Copies PNG to clipboard.",
@@ -8,7 +8,7 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "browser_action": {
+  "action": {
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",
@@ -17,15 +17,17 @@
     "default_title": "Capture Screenshot Area"
   },
   "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+    "service_worker": "background.js"
   },
   "permissions": [
     "activeTab",
-    "tabs",
-    "clipboardWrite",
+    "scripting"
+  ],
+  "host_permissions": [
     "<all_urls>"
   ],
-  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "web_accessible_resources": []
 }
