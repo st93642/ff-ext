@@ -603,11 +603,30 @@
 
   // Copy image blob to clipboard
   async function copyToClipboard(blob) {
-    const buffer = await blob.arrayBuffer();
+    // Prefer writing directly from the content script (Chrome requirement).
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        return;
+      } catch (error) {
+        // Fall back to background-assisted approach (executeScript) for cases where
+        // clipboard write requires a fresh user gesture or other transient conditions.
+        console.warn('Direct clipboard write failed, falling back:', error);
+      }
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed to read image for clipboard'));
+      reader.readAsDataURL(blob);
+    });
+
     const response = await chrome.runtime.sendMessage({
       action: 'copyImageToClipboard',
-      imageData: buffer,
-      imageType: 'png'
+      dataUrl
     });
 
     if (!response || !response.success) {
